@@ -20,6 +20,8 @@ export default defineConfig({
       thresholds: {
         // Every rule reads the model, so every branch of it is tested (spec T2.4).
         'src/model/**': { branches: 100, functions: 100, lines: 100, statements: 100 },
+        // Every statement family the replay handles has a test (spec T2.5).
+        'src/replay/**': { branches: 100, functions: 100, lines: 100, statements: 100 },
       },
     },
   },
