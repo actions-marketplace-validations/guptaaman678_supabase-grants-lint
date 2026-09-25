@@ -2,19 +2,9 @@
 import { parseArgs } from 'node:util';
 import { version } from '../version.js';
 import { ExitCode } from './exit-codes.js';
+import { usage } from './usage.js';
 
-const USAGE = `Usage: supabase-grants-lint <command> [options]
-
-Commands:
-  check     lint migrations for missing Data API grants
-  doctor    readiness report for 2026-10-30
-  explain   grant timeline for one relation
-  init      write a config file and a GitHub workflow
-
-Options:
-  --version  print the version
-  --help     print this help
-`;
+const USAGE = usage();
 
 export function run(argv: readonly string[]): ExitCode {
   let values: { version?: boolean; help?: boolean };

@@ -16,6 +16,7 @@ import {
 import { qualified } from '../replay/context.js';
 import type { WindowedReplay } from '../replay/since.js';
 import { version } from '../version.js';
+import { GL001 } from './GL001.js';
 import type {
   FileContext,
   Finding,
@@ -29,7 +30,7 @@ import type {
 export type * from './types.js';
 
 /** Every implemented rule, in rule ID order. */
-export const RULES: readonly Rule[] = [];
+export const RULES: readonly Rule[] = [GL001];
 
 const REPO = 'https://github.com/guptaaman678/supabase-grants-lint';
 

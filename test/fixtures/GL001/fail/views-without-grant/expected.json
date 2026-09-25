@@ -1,0 +1,22 @@
+{
+  "findings": [
+    {
+      "rule": "GL001",
+      "severity": "error",
+      "file": "migrations/20261002000000_add_orders.sql",
+      "line": 7,
+      "column": 1,
+      "relation": "public.order_summary",
+      "role": "service_role"
+    },
+    {
+      "rule": "GL001",
+      "severity": "error",
+      "file": "migrations/20261002000000_add_orders.sql",
+      "line": 10,
+      "column": 1,
+      "relation": "public.order_totals",
+      "role": "service_role"
+    }
+  ]
+}

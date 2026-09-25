@@ -91,7 +91,7 @@ function perCreated(id: RuleId, extra: Partial<RuleFinding> = {}): Rule {
   return rule(id, (ctx) =>
     ctx.enforced.flatMap((file) =>
       file.created.map((relation): RuleFinding => ({
-        at: relation.created ?? { file: file.file, line: 1, column: 1 },
+        at: relation.created,
         message: `${relation.name} found`,
         relation,
         ...extra,

@@ -6,7 +6,7 @@
 import type { PlatformDefaults } from '../config/defaults.js';
 import { DefaultPrivileges } from '../model/defaults.js';
 import { Catalog, type Policy, type Relation, type RelationName } from '../model/relations.js';
-import type { Statement } from '../parse/ir.js';
+import type { SourceLocation, Statement } from '../parse/ir.js';
 import type { ReplayContext, ReplayEvent, ReplayOptions } from './context.js';
 import { createRelation, createSequence } from './handlers/create.js';
 import { alterDefaultPrivileges } from './handlers/default-privileges.js';
@@ -35,6 +35,11 @@ export interface EngineOptions extends ReplayOptions {
   readonly platformRevokeBefore?: number | null;
 }
 
+/** A relation whose CREATE statement the replay saw. */
+export interface CreatedRelation extends Relation {
+  readonly created: SourceLocation;
+}
+
 export interface FileReplay {
   readonly file: string;
   readonly version: string | null;
@@ -47,7 +52,7 @@ export interface FileReplay {
   /** What each statement did, in order. */
   readonly events: readonly ReplayEvent[];
   /** In-scope relations that exist at the end of the file and were created in it. */
-  readonly created: readonly Relation[];
+  readonly created: readonly CreatedRelation[];
   /** Policies on in-scope relations, at the end of the file, created or altered in it. */
   readonly policies: readonly Policy[];
 }
@@ -137,7 +142,9 @@ export function replay(inputs: readonly ReplayInput[], options: EngineOptions): 
       before,
       after: catalog,
       events: ctx.events,
-      created: catalog.relations().filter((r) => inScope(r) && inFile(r.created)),
+      created: catalog
+        .relations()
+        .filter((r): r is CreatedRelation => inScope(r) && inFile(r.created)),
       policies: catalog
         .policies()
         .filter((p) => inScope(p.relation) && (inFile(p.created) || inFile(p.altered))),
