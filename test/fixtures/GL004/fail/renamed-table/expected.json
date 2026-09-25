@@ -1,0 +1,13 @@
+{
+  "findings": [
+    {
+      "rule": "GL004",
+      "severity": "error",
+      "file": "migrations/20261002000000_add_orders.sql",
+      "line": 1,
+      "column": 1,
+      "relation": "public.purchases",
+      "role": "authenticated"
+    }
+  ]
+}

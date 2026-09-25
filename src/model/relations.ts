@@ -31,6 +31,11 @@ export interface Sequence extends RelationName {
   readonly ownedBy: { readonly relation: RelationName; readonly column: string } | null;
 }
 
+/** A sequence created for a serial column. */
+export interface OwnedSequence extends Sequence {
+  readonly ownedBy: NonNullable<Sequence['ownedBy']>;
+}
+
 export interface Policy {
   readonly name: string;
   readonly relation: RelationName;
@@ -96,9 +101,9 @@ export class Catalog {
   }
 
   /** Sequences owned by serial columns of `relation`. */
-  ownedSequences(relation: RelationName): readonly Sequence[] {
+  ownedSequences(relation: RelationName): readonly OwnedSequence[] {
     return this.sequences().filter(
-      (s) => s.ownedBy !== null && sameName(s.ownedBy.relation, relation),
+      (s): s is OwnedSequence => s.ownedBy !== null && sameName(s.ownedBy.relation, relation),
     );
   }
 

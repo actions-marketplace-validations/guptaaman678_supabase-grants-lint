@@ -6,8 +6,15 @@
 import { type Grantee, PUBLIC } from '../model/acl.js';
 import type { RuleContext } from './types.js';
 
+const API_ROLE_NAMES = ['anon', 'authenticated'] as const;
+
 /** The roles PostgREST switches to for client requests. */
-export const API_CLIENT_ROLES: readonly Grantee[] = ['anon', 'authenticated'];
+export const API_CLIENT_ROLES: readonly Grantee[] = API_ROLE_NAMES;
+
+/** The client roles a rule checks by name: `anon`, `authenticated` and config `clientRoles`. */
+export function checkedClientRoles(ctx: RuleContext): readonly string[] {
+  return [...new Set([...API_ROLE_NAMES, ...ctx.config.clientRoles])];
+}
 
 export function isCheckedPolicyRole(ctx: RuleContext, role: Grantee): boolean {
   return role === PUBLIC || API_CLIENT_ROLES.includes(role) || ctx.isClientRole(role);

@@ -1,0 +1,22 @@
+{
+  "findings": [
+    {
+      "rule": "GL004",
+      "severity": "error",
+      "file": "migrations/20261002000000_add_tables.sql",
+      "line": 1,
+      "column": 1,
+      "relation": "public.messages",
+      "role": "authenticated"
+    },
+    {
+      "rule": "GL004",
+      "severity": "error",
+      "file": "migrations/20261002000000_add_tables.sql",
+      "line": 2,
+      "column": 1,
+      "relation": "public.audit_log",
+      "role": "authenticated"
+    }
+  ]
+}
