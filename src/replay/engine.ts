@@ -16,6 +16,7 @@ import { renameObject, setSchema } from './handlers/move.js';
 import { alterPolicy, createPolicy, dropPolicy, renamePolicy } from './handlers/policy.js';
 import { setRole } from './handlers/role.js';
 import { dynamicSql, unparseable } from './handlers/unmodelled.js';
+import { applyPlatformRevoke } from './platform-revoke.js';
 
 export interface ReplayInput {
   /** Path used in locations (relative to the working directory, `/` separators). */
@@ -27,6 +28,11 @@ export interface ReplayInput {
 export interface EngineOptions extends ReplayOptions {
   /** The default privileges in place before the first file (config `platformDefaults`). */
   readonly platformDefaults: PlatformDefaults;
+  /**
+   * Replay index of the file before which the announced platform revoke is assumed (ADR-002
+   * item 1); `null` or omitted for none. Set by `replayWithWindow` from the `since` setting.
+   */
+  readonly platformRevokeBefore?: number | null;
 }
 
 export interface FileReplay {
@@ -34,7 +40,7 @@ export interface FileReplay {
   readonly version: string | null;
   /** Position in replay order, from 0. */
   readonly index: number;
-  /** The catalog before the file's first statement. */
+  /** The catalog before the file's first statement (after an assumed platform revoke). */
   readonly before: Catalog;
   /** The catalog at the end of the file: the snapshot rules evaluate. */
   readonly after: Catalog;
@@ -111,12 +117,15 @@ export function replay(inputs: readonly ReplayInput[], options: EngineOptions): 
   const initial = Catalog.create(DefaultPrivileges.initial(options.platformDefaults));
   let catalog = initial;
   const files = inputs.map((input, index): FileReplay => {
-    const ctx: ReplayContext = {
-      options,
-      catalog,
-      creator: options.migrationRole,
-      events: [],
-    };
+    const events: ReplayEvent[] = [];
+    if (index === options.platformRevokeBefore) {
+      const revoked = applyPlatformRevoke(catalog, options.migrationRole, input.file);
+      if (revoked !== null) {
+        catalog = revoked.catalog;
+        events.push(revoked.event);
+      }
+    }
+    const ctx: ReplayContext = { options, catalog, creator: options.migrationRole, events };
     for (const stmt of input.statements) apply(stmt, ctx);
     const before = catalog;
     catalog = ctx.catalog;

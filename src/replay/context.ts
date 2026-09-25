@@ -124,6 +124,23 @@ export interface SkippedEvent {
   readonly message: string;
 }
 
+/**
+ * The announced platform revoke, assumed before the first enforced file when `since` is set
+ * explicitly (ADR-002 item 1). Located at the start of that file; rules report it as a notice.
+ */
+export interface PlatformRevokeEvent {
+  readonly kind: 'platformRevoke';
+  readonly at: SourceLocation;
+  readonly creator: string;
+  readonly schema: string;
+  /** The default privileges it removed, per object kind and grantee. */
+  readonly removed: readonly {
+    readonly object: AclKind;
+    readonly grantee: string;
+    readonly privileges: readonly string[];
+  }[];
+}
+
 export type ReplayEvent =
   | CreatedEvent
   | DroppedEvent
@@ -132,7 +149,8 @@ export type ReplayEvent =
   | DefaultPrivilegesEvent
   | PolicyEvent
   | CreatorEvent
-  | SkippedEvent;
+  | SkippedEvent
+  | PlatformRevokeEvent;
 
 /** Mutable state of one file's replay. Handlers replace `catalog`; it is immutable itself. */
 export interface ReplayContext {
