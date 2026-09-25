@@ -1,0 +1,43 @@
+name: False positive / false negative
+description: A rule fired when it should not have, or stayed silent when it should have fired
+labels: ["false-positive"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Tool version
+      description: Output of `supabase-grants-lint --version`
+    validations:
+      required: true
+  - type: input
+    id: rule
+    attributes:
+      label: Rule ID
+      placeholder: "GL002"
+    validations:
+      required: true
+  - type: textarea
+    id: sql
+    attributes:
+      label: SQL
+      description: >
+        The minimal migration SQL that reproduces the issue. Please
+        anonymize table and column names if needed; synthetic names are
+        fine.
+      render: sql
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+      description: What findings (or lack of findings) you expected, and why.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: The findings the tool produced (paste the pretty or JSON output).
+    validations:
+      required: true

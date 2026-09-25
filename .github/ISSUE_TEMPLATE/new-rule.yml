@@ -1,0 +1,29 @@
+name: New rule proposal
+description: Propose a new check within the project's scope (grants and RLS reachability)
+labels: ["new-rule"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What real mistake does this catch, and how does it fail today (silently, or with a confusing error)?
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example
+      description: A minimal SQL example that should trigger the new rule.
+      render: sql
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Why this belongs in scope
+      description: >
+        This project covers grants and RLS reachability only. General SQL
+        linting belongs in squawk; live-database advisories belong in
+        Supabase splinter. Explain why this check needs a migration replay.
+    validations:
+      required: true
