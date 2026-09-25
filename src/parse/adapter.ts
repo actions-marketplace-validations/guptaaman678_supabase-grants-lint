@@ -1,0 +1,638 @@
+import {
+  type AccessPriv,
+  type AlterDefaultPrivilegesStmt,
+  type GrantStmt,
+  loadModule,
+  type Node,
+  type ObjectType,
+  parseSync,
+  type RangeVar,
+  type RawStmt,
+  type RoleSpec,
+  type ScanToken,
+  scanSync,
+} from 'libpg-query';
+import {
+  DYNAMIC_SQL_KEYWORDS,
+  type DynamicSqlKeyword,
+  type ObjectKind,
+  type PolicyCommand,
+  type Privilege,
+  type QualifiedName,
+  type RoleRef,
+  SERIAL_TYPES,
+  type SerialColumn,
+  type SerialType,
+  type SourceLocation,
+  type Statement,
+} from './ir.js';
+import {
+  scanSuppressions,
+  type SqlComment,
+  type Suppression,
+  type SuppressionProblem,
+} from './suppressions.js';
+
+export interface ParsedFile {
+  readonly file: string;
+  /** Every statement in source order, including `Unparseable` and `Unknown` ones. */
+  readonly statements: Statement[];
+  readonly suppressions: Suppression[];
+  readonly suppressionProblems: SuppressionProblem[];
+}
+
+export interface MigrationParser {
+  /** Parses one migration. `file` is the path used in locations. Never throws on bad SQL. */
+  parse(source: string, file: string): ParsedFile;
+}
+
+let ready: Promise<void> | undefined;
+
+/** Loads the Postgres parser (WASM) once. */
+export async function loadParser(): Promise<MigrationParser> {
+  ready ??= loadModule();
+  await ready;
+  return { parse: parseMigration };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Locations. The parser reports UTF-8 byte offsets (ADR-005); findings need line and column.
+
+/** Maps UTF-8 byte offsets of one source to 1-based line and column (UTF-16 code units). */
+export class LineIndex {
+  private readonly lineStarts: number[] = [0];
+
+  constructor(readonly bytes: Buffer) {
+    for (let i = 0; i < bytes.length; i++) {
+      if (bytes[i] === 0x0a) this.lineStarts.push(i + 1);
+    }
+  }
+
+  lineOf(offset: number): number {
+    let lo = 0;
+    let hi = this.lineStarts.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if ((this.lineStarts[mid] ?? 0) <= offset) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo + 1;
+  }
+
+  position(offset: number): { line: number; column: number } {
+    const line = this.lineOf(offset);
+    const start = this.lineStarts[line - 1] ?? 0;
+    return { line, column: this.bytes.toString('utf8', start, offset).length + 1 };
+  }
+
+  text(start: number, end: number): string {
+    return this.bytes.toString('utf8', start, end);
+  }
+}
+
+/** Byte offset of the `codePoints`-th code point of `text` (the parser's error cursor unit). */
+export function codePointToByteOffset(text: string, codePoints: number): number {
+  let bytes = 0;
+  let seen = 0;
+  for (const char of text) {
+    if (seen === codePoints) break;
+    bytes += Buffer.byteLength(char);
+    seen++;
+  }
+  return bytes;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Parsing with statement-level recovery.
+
+interface RawPiece {
+  readonly stmt: RawStmt;
+  /** Byte offset of the piece within the file. */
+  readonly base: number;
+  /** Byte offset where the piece ends (a statement with no length runs to here). */
+  readonly end: number;
+}
+
+interface Failure {
+  readonly start: number;
+  readonly end: number;
+  readonly message: string;
+  /** Byte offset of the error in the file, when the parser gave one. */
+  readonly errorAt: number | null;
+}
+
+function errorDetails(
+  error: unknown,
+  text: string,
+  base: number,
+): { message: string; errorAt: number | null } {
+  const message = error instanceof Error ? error.message : String(error);
+  const cursor = (error as { sqlDetails?: { cursorPosition?: number } }).sqlDetails?.cursorPosition;
+  return {
+    message,
+    errorAt: typeof cursor === 'number' ? base + codePointToByteOffset(text, cursor) : null,
+  };
+}
+
+function isComment(token: ScanToken): boolean {
+  return token.tokenName === 'SQL_COMMENT' || token.tokenName === 'C_COMMENT';
+}
+
+function scanTokens(text: string): ScanToken[] | null {
+  try {
+    return scanSync(text).tokens;
+  } catch {
+    // The scanner fails on unterminated literals and comments.
+    return null;
+  }
+}
+
+/**
+ * ADR-005 point 5: parse the whole file; if that fails, split it on top-level `;` tokens
+ * (dollar-quoted bodies are single tokens) and parse each piece, so one bad statement does
+ * not hide the rest of the file.
+ */
+function parsePieces(
+  index: LineIndex,
+  text: string,
+  tokens: ScanToken[] | null,
+): { pieces: RawPiece[]; failures: Failure[] } {
+  // The parser rejects empty input ("Query cannot be empty") but accepts whitespace.
+  if (text === '') return { pieces: [], failures: [] };
+  try {
+    const end = index.bytes.length;
+    return {
+      pieces: (parseSync(text).stmts ?? []).map((stmt) => ({ stmt, base: 0, end })),
+      failures: [],
+    };
+  } catch (error) {
+    if (tokens === null) {
+      // Not even the scanner can split the file (an unterminated literal or comment).
+      const { message, errorAt } = errorDetails(error, text, 0);
+      const start = errorAt ?? 0;
+      return { pieces: [], failures: [{ start, end: index.bytes.length, message, errorAt }] };
+    }
+  }
+
+  const pieces: RawPiece[] = [];
+  const failures: Failure[] = [];
+  let group: ScanToken[] = [];
+  const flush = (end: number): void => {
+    const first = group.find((token) => !isComment(token));
+    group = [];
+    if (first === undefined) return;
+    const pieceText = index.text(first.start, end);
+    try {
+      for (const stmt of parseSync(pieceText).stmts ?? []) {
+        pieces.push({ stmt, base: first.start, end });
+      }
+    } catch (error) {
+      failures.push({ start: first.start, end, ...errorDetails(error, pieceText, first.start) });
+    }
+  };
+  for (const token of tokens) {
+    if (token.text === ';') {
+      flush(token.start);
+      continue;
+    }
+    group.push(token);
+  }
+  flush(index.bytes.length);
+  return { pieces, failures };
+}
+
+function commentsOf(
+  tokens: ScanToken[] | null,
+  text: string,
+  index: LineIndex,
+  file: string,
+): SqlComment[] {
+  if (tokens !== null) {
+    return tokens.filter(isComment).map((token) => ({
+      file,
+      ...index.position(token.start),
+      endLine: index.lineOf(Math.max(token.start, token.end - 1)),
+      text: token.text,
+    }));
+  }
+  // The scanner failed (the file is a PARSE001 anyway): fall back to whole-line `--` comments.
+  const comments: SqlComment[] = [];
+  text.split('\n').forEach((line, i) => {
+    const trimmed = line.trimStart();
+    if (!trimmed.startsWith('--')) return;
+    comments.push({
+      file,
+      line: i + 1,
+      column: line.length - trimmed.length + 1,
+      endLine: i + 1,
+      text: trimmed.trimEnd(),
+    });
+  });
+  return comments;
+}
+
+function parseMigration(source: string, file: string): ParsedFile {
+  // A UTF-8 byte order mark is not SQL; dropping it keeps line 1 columns right.
+  const text = source.startsWith('\uFEFF') ? source.slice(1) : source;
+  const index = new LineIndex(Buffer.from(text, 'utf8'));
+  const tokens = scanTokens(text);
+  const { pieces, failures } = parsePieces(index, text, tokens);
+
+  const located: { start: number; statement: Statement }[] = [];
+  for (const { stmt, base, end: pieceEnd } of pieces) {
+    // ADR-005 point 3: an absent location is 0, an absent or zero length runs to the end.
+    const start = base + (stmt.stmt_location ?? 0);
+    const end = stmt.stmt_len ? start + stmt.stmt_len : pieceEnd;
+    const at = { file, ...index.position(start), text: index.text(start, end).trimEnd() };
+    located.push({
+      start,
+      statement: stmt.stmt === undefined ? unknown(at, 'RawStmt') : toStatement(stmt.stmt, at),
+    });
+  }
+  for (const failure of failures) {
+    const at = {
+      file,
+      ...index.position(failure.start),
+      text: index.text(failure.start, failure.end).trim(),
+    };
+    const where = failure.errorAt === null ? null : index.position(failure.errorAt);
+    const message =
+      where === null
+        ? failure.message
+        : `${failure.message} (line ${String(where.line)}, column ${String(where.column)})`;
+    located.push({ start: failure.start, statement: { kind: 'Unparseable', ...at, message } });
+  }
+  located.sort((a, b) => a.start - b.start);
+
+  const { suppressions, problems } = scanSuppressions(commentsOf(tokens, text, index, file));
+  return {
+    file,
+    statements: located.map((entry) => entry.statement),
+    suppressions,
+    suppressionProblems: problems,
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+// AST to IR.
+
+type At = SourceLocation & { readonly text: string };
+
+function unknown(at: At, nodeType: string, detail: string | null = null): Statement {
+  return { kind: 'Unknown', ...at, nodeType, detail };
+}
+
+function nodeTypeOf(node: Node): string {
+  return Object.keys(node)[0] ?? 'Node';
+}
+
+function qualified(rv: RangeVar | undefined): QualifiedName {
+  return { schema: rv?.schemaname ?? null, name: rv?.relname ?? '' };
+}
+
+/** A `List` of `String` nodes (`DROP` targets), e.g. `[schema, name]` or `[schema, table, policy]`. */
+function stringList(node: Node | undefined): string[] {
+  if (node === undefined) return [];
+  if ('List' in node) return (node.List.items ?? []).flatMap(stringList);
+  if ('String' in node) return [node.String.sval ?? ''];
+  return [];
+}
+
+function nameFromParts(parts: readonly string[]): QualifiedName {
+  const name = parts[parts.length - 1] ?? '';
+  return { schema: parts.length > 1 ? (parts[parts.length - 2] ?? null) : null, name };
+}
+
+function roleRef(spec: RoleSpec): RoleRef {
+  switch (spec.roletype) {
+    case 'ROLESPEC_PUBLIC':
+      return { kind: 'public' };
+    case 'ROLESPEC_CURRENT_USER':
+      return { kind: 'current_user' };
+    case 'ROLESPEC_CURRENT_ROLE':
+      return { kind: 'current_role' };
+    case 'ROLESPEC_SESSION_USER':
+      return { kind: 'session_user' };
+    default:
+      return { kind: 'role', name: spec.rolename ?? '' };
+  }
+}
+
+function roleRefs(nodes: Node[] | undefined): RoleRef[] {
+  return (nodes ?? []).flatMap((node) => ('RoleSpec' in node ? [roleRef(node.RoleSpec)] : []));
+}
+
+function privileges(nodes: Node[] | undefined): Privilege[] {
+  // An absent privilege list is `ALL [PRIVILEGES]`.
+  if (nodes === undefined || nodes.length === 0) return [{ name: 'all', columns: null }];
+  return nodes.flatMap((node) => {
+    if (!('AccessPriv' in node)) return [];
+    const priv: AccessPriv = node.AccessPriv;
+    const columns = priv.cols === undefined ? null : priv.cols.flatMap(stringList);
+    return [{ name: priv.priv_name ?? 'all', columns }];
+  });
+}
+
+const OBJECT_KINDS: Partial<Record<ObjectType, ObjectKind>> = {
+  OBJECT_TABLE: 'table',
+  OBJECT_VIEW: 'view',
+  OBJECT_MATVIEW: 'materialized view',
+  OBJECT_FOREIGN_TABLE: 'foreign table',
+  OBJECT_SEQUENCE: 'sequence',
+};
+
+function serialColumns(elements: Node[] | undefined): SerialColumn[] {
+  const columns: SerialColumn[] = [];
+  for (const element of elements ?? []) {
+    if (!('ColumnDef' in element)) continue;
+    const def = element.ColumnDef;
+    const names = def.typeName?.names ?? [];
+    // Postgres only expands an unqualified, non-array serial type name.
+    if (names.length !== 1 || def.typeName?.arrayBounds !== undefined || def.typeName?.pct_type) {
+      continue;
+    }
+    const typeName = stringList(names[0])[0] ?? '';
+    if ((SERIAL_TYPES as readonly string[]).includes(typeName)) {
+      columns.push({ column: def.colname ?? '', type: typeName as SerialType });
+    }
+  }
+  return columns;
+}
+
+const KEYWORD_PATTERNS: Record<DynamicSqlKeyword, RegExp> = {
+  grant: /\bgrant\b/i,
+  revoke: /\brevoke\b/i,
+  'create table': /\bcreate\s+(?:(?:global|local|temp|temporary|unlogged)\s+)*table\b/i,
+  'create policy': /\bcreate\s+policy\b/i,
+  'default privileges': /\bdefault\s+privileges\b/i,
+};
+
+export function dynamicSqlMentions(body: string): DynamicSqlKeyword[] {
+  return DYNAMIC_SQL_KEYWORDS.filter((keyword) => KEYWORD_PATTERNS[keyword].test(body));
+}
+
+function grantStatement(grant: GrantStmt, at: At): Statement {
+  const objectKind =
+    grant.objtype === 'OBJECT_TABLE'
+      ? 'table'
+      : grant.objtype === 'OBJECT_SEQUENCE'
+        ? 'sequence'
+        : null;
+  if (objectKind === null || grant.targtype === 'ACL_TARGET_DEFAULTS') {
+    return unknown(at, 'GrantStmt', `object type ${grant.objtype ?? 'unknown'}`);
+  }
+  const objects = grant.objects ?? [];
+  const target =
+    grant.targtype === 'ACL_TARGET_ALL_IN_SCHEMA'
+      ? { kind: 'allInSchema' as const, schemas: objects.flatMap(stringList) }
+      : {
+          kind: 'objects' as const,
+          objects: objects.flatMap((node) =>
+            'RangeVar' in node ? [qualified(node.RangeVar)] : [],
+          ),
+        };
+  return {
+    kind: 'Grant',
+    ...at,
+    action: grant.is_grant === true ? 'grant' : 'revoke',
+    objectKind,
+    target,
+    privileges: privileges(grant.privileges),
+    grantees: roleRefs(grant.grantees),
+    grantOption: grant.grant_option === true,
+  };
+}
+
+function defaultPrivilegesStatement(stmt: AlterDefaultPrivilegesStmt, at: At): Statement {
+  const action = stmt.action ?? {};
+  const objectKind =
+    action.objtype === 'OBJECT_TABLE'
+      ? 'table'
+      : action.objtype === 'OBJECT_SEQUENCE'
+        ? 'sequence'
+        : null;
+  if (objectKind === null) {
+    return unknown(at, 'AlterDefaultPrivilegesStmt', `object type ${action.objtype ?? 'unknown'}`);
+  }
+  let forRoles: RoleRef[] | null = null;
+  let inSchemas: string[] | null = null;
+  for (const option of stmt.options ?? []) {
+    if (!('DefElem' in option)) continue;
+    const { defname, arg } = option.DefElem;
+    const items = arg !== undefined && 'List' in arg ? (arg.List.items ?? []) : [];
+    if (defname === 'roles') forRoles = roleRefs(items);
+    if (defname === 'schemas') inSchemas = items.flatMap(stringList);
+  }
+  return {
+    kind: 'AlterDefaultPrivileges',
+    ...at,
+    action: action.is_grant === true ? 'grant' : 'revoke',
+    forRoles,
+    inSchemas,
+    objectKind,
+    privileges: privileges(action.privileges),
+    grantees: roleRefs(action.grantees),
+    grantOption: action.grant_option === true,
+  };
+}
+
+function policyCommand(name: string | undefined): PolicyCommand {
+  return name === 'select' || name === 'insert' || name === 'update' || name === 'delete'
+    ? name
+    : 'all';
+}
+
+function constString(node: Node | undefined): string | null {
+  if (node === undefined || !('A_Const' in node)) return null;
+  return node.A_Const.sval?.sval ?? null;
+}
+
+/** Maps one parsed statement to the IR. Anything not in spec §6.1 becomes `Unknown`. */
+export function toStatement(node: Node, at: At): Statement {
+  if ('CreateStmt' in node) {
+    const stmt = node.CreateStmt;
+    const parent = stmt.partbound === undefined ? undefined : stmt.inhRelations?.[0];
+    return {
+      kind: 'CreateRelation',
+      ...at,
+      relation: qualified(stmt.relation),
+      relationKind: 'table',
+      temporary: stmt.relation?.relpersistence === 't',
+      ifNotExists: stmt.if_not_exists === true,
+      orReplace: false,
+      partitionOf: parent !== undefined && 'RangeVar' in parent ? qualified(parent.RangeVar) : null,
+      serialColumns: serialColumns(stmt.tableElts),
+    };
+  }
+  if ('CreateTableAsStmt' in node) {
+    const stmt = node.CreateTableAsStmt;
+    const rel = stmt.into?.rel;
+    return {
+      kind: 'CreateRelation',
+      ...at,
+      relation: qualified(rel),
+      relationKind: stmt.objtype === 'OBJECT_MATVIEW' ? 'materialized view' : 'table',
+      temporary: rel?.relpersistence === 't',
+      ifNotExists: stmt.if_not_exists === true,
+      orReplace: false,
+      partitionOf: null,
+      serialColumns: [],
+    };
+  }
+  if ('ViewStmt' in node) {
+    const stmt = node.ViewStmt;
+    return {
+      kind: 'CreateRelation',
+      ...at,
+      relation: qualified(stmt.view),
+      relationKind: 'view',
+      temporary: stmt.view?.relpersistence === 't',
+      ifNotExists: false,
+      orReplace: stmt.replace === true,
+      partitionOf: null,
+      serialColumns: [],
+    };
+  }
+  if ('CreateForeignTableStmt' in node) {
+    const base = node.CreateForeignTableStmt.base ?? {};
+    return {
+      kind: 'CreateRelation',
+      ...at,
+      relation: qualified(base.relation),
+      relationKind: 'foreign table',
+      temporary: false,
+      ifNotExists: base.if_not_exists === true,
+      orReplace: false,
+      partitionOf: null,
+      serialColumns: [],
+    };
+  }
+  if ('CreateSeqStmt' in node) {
+    const stmt = node.CreateSeqStmt;
+    return {
+      kind: 'CreateSequence',
+      ...at,
+      sequence: qualified(stmt.sequence),
+      temporary: stmt.sequence?.relpersistence === 't',
+      ifNotExists: stmt.if_not_exists === true,
+    };
+  }
+  if ('RenameStmt' in node) {
+    const stmt = node.RenameStmt;
+    if (stmt.renameType === 'OBJECT_POLICY') {
+      return {
+        kind: 'RenamePolicy',
+        ...at,
+        name: stmt.subname ?? '',
+        relation: qualified(stmt.relation),
+        newName: stmt.newname ?? '',
+      };
+    }
+    const objectKind = stmt.renameType === undefined ? undefined : OBJECT_KINDS[stmt.renameType];
+    if (objectKind === undefined || stmt.relation === undefined) {
+      return unknown(at, 'RenameStmt', `object type ${stmt.renameType ?? 'unknown'}`);
+    }
+    return {
+      kind: 'RenameObject',
+      ...at,
+      objectKind,
+      object: qualified(stmt.relation),
+      newName: stmt.newname ?? '',
+      ifExists: stmt.missing_ok === true,
+    };
+  }
+  if ('AlterObjectSchemaStmt' in node) {
+    const stmt = node.AlterObjectSchemaStmt;
+    const objectKind = stmt.objectType === undefined ? undefined : OBJECT_KINDS[stmt.objectType];
+    if (objectKind === undefined || stmt.relation === undefined) {
+      return unknown(at, 'AlterObjectSchemaStmt', `object type ${stmt.objectType ?? 'unknown'}`);
+    }
+    return {
+      kind: 'SetSchema',
+      ...at,
+      objectKind,
+      object: qualified(stmt.relation),
+      newSchema: stmt.newschema ?? '',
+      ifExists: stmt.missing_ok === true,
+    };
+  }
+  if ('DropStmt' in node) {
+    const stmt = node.DropStmt;
+    const ifExists = stmt.missing_ok === true;
+    if (stmt.removeType === 'OBJECT_POLICY') {
+      // `[schema.]table.policy`: one policy per DROP POLICY statement.
+      const parts = stringList(stmt.objects?.[0]);
+      return {
+        kind: 'DropPolicy',
+        ...at,
+        name: parts[parts.length - 1] ?? '',
+        relation: nameFromParts(parts.slice(0, -1)),
+        ifExists,
+      };
+    }
+    const objectKind = stmt.removeType === undefined ? undefined : OBJECT_KINDS[stmt.removeType];
+    if (objectKind === undefined) {
+      return unknown(at, 'DropStmt', `object type ${stmt.removeType ?? 'unknown'}`);
+    }
+    return {
+      kind: 'DropObjects',
+      ...at,
+      objectKind,
+      objects: (stmt.objects ?? []).map((object) => nameFromParts(stringList(object))),
+      ifExists,
+      cascade: stmt.behavior === 'DROP_CASCADE',
+    };
+  }
+  if ('GrantStmt' in node) return grantStatement(node.GrantStmt, at);
+  if ('AlterDefaultPrivilegesStmt' in node)
+    return defaultPrivilegesStatement(node.AlterDefaultPrivilegesStmt, at);
+  if ('CreatePolicyStmt' in node) {
+    const stmt = node.CreatePolicyStmt;
+    const roles = roleRefs(stmt.roles);
+    return {
+      kind: 'CreatePolicy',
+      ...at,
+      name: stmt.policy_name ?? '',
+      relation: qualified(stmt.table),
+      command: policyCommand(stmt.cmd_name),
+      roles: roles.length === 0 ? [{ kind: 'public' }] : roles,
+      // The AST omits `permissive` when it is false (`AS RESTRICTIVE`).
+      permissive: stmt.permissive === true,
+    };
+  }
+  if ('AlterPolicyStmt' in node) {
+    const stmt = node.AlterPolicyStmt;
+    return {
+      kind: 'AlterPolicy',
+      ...at,
+      name: stmt.policy_name ?? '',
+      relation: qualified(stmt.table),
+      roles: stmt.roles === undefined ? null : roleRefs(stmt.roles),
+    };
+  }
+  if ('VariableSetStmt' in node) {
+    const stmt = node.VariableSetStmt;
+    if (stmt.name !== 'role')
+      return unknown(at, 'VariableSetStmt', `setting ${stmt.name ?? 'all'}`);
+    const value = stmt.kind === 'VAR_SET_VALUE' ? constString(stmt.args?.[0]) : null;
+    // `SET ROLE NONE` and `SET ROLE DEFAULT` behave like `RESET ROLE`.
+    return {
+      kind: 'SetRole',
+      ...at,
+      role: value === 'none' ? null : value,
+      local: stmt.is_local === true,
+    };
+  }
+  if ('DoStmt' in node) {
+    let body = '';
+    let language: string | null = null;
+    for (const arg of node.DoStmt.args ?? []) {
+      if (!('DefElem' in arg)) continue;
+      const value = stringList(arg.DefElem.arg)[0] ?? '';
+      if (arg.DefElem.defname === 'as') body = value;
+      if (arg.DefElem.defname === 'language') language = value;
+    }
+    return { kind: 'DynamicSql', ...at, language, body, mentions: dynamicSqlMentions(body) };
+  }
+  return unknown(at, nodeTypeOf(node));
+}

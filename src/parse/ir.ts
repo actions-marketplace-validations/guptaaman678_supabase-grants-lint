@@ -1,0 +1,246 @@
+/**
+ * Statement IR: the typed shape of every statement the replay model (spec §6.1) handles.
+ * Rules and the replay engine read this, never the parser's AST.
+ *
+ * Names keep the case the parser gives them: unquoted identifiers are lowercased, quoted ones
+ * are kept verbatim. A `schema` of `null` means the name was not schema-qualified; resolving it
+ * (for example against `public`) is the replay model's job.
+ */
+
+/** Where a statement starts. `line` and `column` are 1-based; `column` counts UTF-16 code units. */
+export interface SourceLocation {
+  /** Migration path relative to the working directory, with `/` separators. */
+  readonly file: string;
+  readonly line: number;
+  readonly column: number;
+}
+
+export interface QualifiedName {
+  readonly schema: string | null;
+  readonly name: string;
+}
+
+/** A role as written in GRANT, REVOKE, policies and default privileges. */
+export type RoleRef =
+  | { readonly kind: 'public' }
+  | { readonly kind: 'role'; readonly name: string }
+  | { readonly kind: 'current_user' }
+  | { readonly kind: 'current_role' }
+  | { readonly kind: 'session_user' };
+
+export type RelationKind = 'table' | 'view' | 'materialized view' | 'foreign table';
+
+/** Relation kinds plus sequences: the objects RENAME, SET SCHEMA and DROP can target. */
+export type ObjectKind = RelationKind | 'sequence';
+
+export const SERIAL_TYPES = [
+  'smallserial',
+  'serial',
+  'bigserial',
+  'serial2',
+  'serial4',
+  'serial8',
+] as const;
+export type SerialType = (typeof SERIAL_TYPES)[number];
+
+export interface SerialColumn {
+  readonly column: string;
+  readonly type: SerialType;
+}
+
+/**
+ * A privilege as written, lowercased by the parser. `all` stands for `ALL [PRIVILEGES]`, which
+ * the model expands for the object kind. `columns` is set for column-level grants.
+ */
+export interface Privilege {
+  readonly name: string;
+  readonly columns: readonly string[] | null;
+}
+
+export type PolicyCommand = 'all' | 'select' | 'insert' | 'update' | 'delete';
+
+interface Base extends SourceLocation {
+  /** Source text of the statement, without the trailing `;`. */
+  readonly text: string;
+}
+
+/** CREATE TABLE | VIEW | MATERIALIZED VIEW | FOREIGN TABLE, including `AS` and `PARTITION OF`. */
+export interface CreateRelation extends Base {
+  readonly kind: 'CreateRelation';
+  readonly relation: QualifiedName;
+  readonly relationKind: RelationKind;
+  /** `CREATE TEMP ...`: temporary relations are not tracked. */
+  readonly temporary: boolean;
+  readonly ifNotExists: boolean;
+  /** `CREATE OR REPLACE VIEW`. */
+  readonly orReplace: boolean;
+  /** Parent of `CREATE TABLE ... PARTITION OF`, otherwise `null`. */
+  readonly partitionOf: QualifiedName | null;
+  /** Columns declared with a serial pseudo-type; each gets an owned sequence. */
+  readonly serialColumns: readonly SerialColumn[];
+}
+
+export interface CreateSequence extends Base {
+  readonly kind: 'CreateSequence';
+  readonly sequence: QualifiedName;
+  readonly temporary: boolean;
+  readonly ifNotExists: boolean;
+}
+
+/** `ALTER ... RENAME TO` on a relation or sequence. */
+export interface RenameObject extends Base {
+  readonly kind: 'RenameObject';
+  readonly objectKind: ObjectKind;
+  readonly object: QualifiedName;
+  readonly newName: string;
+  readonly ifExists: boolean;
+}
+
+/** `ALTER ... SET SCHEMA` on a relation or sequence. */
+export interface SetSchema extends Base {
+  readonly kind: 'SetSchema';
+  readonly objectKind: ObjectKind;
+  readonly object: QualifiedName;
+  readonly newSchema: string;
+  readonly ifExists: boolean;
+}
+
+/** `DROP TABLE | VIEW | MATERIALIZED VIEW | FOREIGN TABLE | SEQUENCE` with one or more names. */
+export interface DropObjects extends Base {
+  readonly kind: 'DropObjects';
+  readonly objectKind: ObjectKind;
+  readonly objects: readonly QualifiedName[];
+  readonly ifExists: boolean;
+  readonly cascade: boolean;
+}
+
+export type GrantTarget =
+  /** Named objects (`ON [TABLE] a, b` or `ON SEQUENCE a, b`). */
+  | { readonly kind: 'objects'; readonly objects: readonly QualifiedName[] }
+  /** `ON ALL TABLES | ALL SEQUENCES IN SCHEMA s, ...`: the objects existing at that point. */
+  | { readonly kind: 'allInSchema'; readonly schemas: readonly string[] };
+
+/** GRANT or REVOKE of privileges on tables (and other relations) or sequences. */
+export interface Grant extends Base {
+  readonly kind: 'Grant';
+  readonly action: 'grant' | 'revoke';
+  /**
+   * `table` covers `ON [TABLE]` (tables, views, materialized and foreign tables; Postgres also
+   * accepts a sequence name here). `sequence` is `ON SEQUENCE` / `ALL SEQUENCES`.
+   */
+  readonly objectKind: 'table' | 'sequence';
+  readonly target: GrantTarget;
+  readonly privileges: readonly Privilege[];
+  readonly grantees: readonly RoleRef[];
+  /** GRANT: `WITH GRANT OPTION`. REVOKE: `GRANT OPTION FOR`, which keeps the privilege itself. */
+  readonly grantOption: boolean;
+}
+
+/** `ALTER DEFAULT PRIVILEGES ... GRANT | REVOKE ... ON TABLES | SEQUENCES`. */
+export interface AlterDefaultPrivileges extends Base {
+  readonly kind: 'AlterDefaultPrivileges';
+  readonly action: 'grant' | 'revoke';
+  /** `FOR ROLE r, ...`; `null` when omitted (the role running the migration). */
+  readonly forRoles: readonly RoleRef[] | null;
+  /** `IN SCHEMA s, ...`; `null` when omitted (all schemas). */
+  readonly inSchemas: readonly string[] | null;
+  readonly objectKind: 'table' | 'sequence';
+  readonly privileges: readonly Privilege[];
+  readonly grantees: readonly RoleRef[];
+  readonly grantOption: boolean;
+}
+
+export interface CreatePolicy extends Base {
+  readonly kind: 'CreatePolicy';
+  readonly name: string;
+  readonly relation: QualifiedName;
+  /** Defaults to `all` when `FOR` is omitted. */
+  readonly command: PolicyCommand;
+  /** Defaults to `[PUBLIC]` when `TO` is omitted. */
+  readonly roles: readonly RoleRef[];
+  readonly permissive: boolean;
+}
+
+/** `ALTER POLICY ... [TO ...] [USING ...] [WITH CHECK ...]`. */
+export interface AlterPolicy extends Base {
+  readonly kind: 'AlterPolicy';
+  readonly name: string;
+  readonly relation: QualifiedName;
+  /** The new `TO` list, or `null` when the statement leaves the roles unchanged. */
+  readonly roles: readonly RoleRef[] | null;
+}
+
+export interface RenamePolicy extends Base {
+  readonly kind: 'RenamePolicy';
+  readonly name: string;
+  readonly relation: QualifiedName;
+  readonly newName: string;
+}
+
+export interface DropPolicy extends Base {
+  readonly kind: 'DropPolicy';
+  readonly name: string;
+  readonly relation: QualifiedName;
+  readonly ifExists: boolean;
+}
+
+/** `SET [LOCAL] ROLE r`, or `RESET ROLE` / `SET ROLE NONE` (`role: null`). */
+export interface SetRole extends Base {
+  readonly kind: 'SetRole';
+  readonly role: string | null;
+  readonly local: boolean;
+}
+
+/** Keywords that make a `DO` body worth a PARSE002 notice (spec §6.1). */
+export const DYNAMIC_SQL_KEYWORDS = [
+  'grant',
+  'revoke',
+  'create table',
+  'create policy',
+  'default privileges',
+] as const;
+export type DynamicSqlKeyword = (typeof DYNAMIC_SQL_KEYWORDS)[number];
+
+/** A `DO` block: its body cannot be modelled. */
+export interface DynamicSql extends Base {
+  readonly kind: 'DynamicSql';
+  readonly language: string | null;
+  readonly body: string;
+  /** Which of `DYNAMIC_SQL_KEYWORDS` the body mentions; PARSE002 fires when non-empty. */
+  readonly mentions: readonly DynamicSqlKeyword[];
+}
+
+/** A statement the parser rejected (PARSE001). It is skipped. */
+export interface Unparseable extends Base {
+  readonly kind: 'Unparseable';
+  /** The parser's message, with the error's line and column. */
+  readonly message: string;
+}
+
+/** A valid statement the replay model does not need (SELECT, CREATE FUNCTION, GRANT on functions ...). */
+export interface Unknown extends Base {
+  readonly kind: 'Unknown';
+  /** The parser's node type, e.g. `CreateFunctionStmt`. */
+  readonly nodeType: string;
+  /** Why a statement of a handled family is not modelled, e.g. `object type OBJECT_FUNCTION`. */
+  readonly detail: string | null;
+}
+
+export type Statement =
+  | CreateRelation
+  | CreateSequence
+  | RenameObject
+  | SetSchema
+  | DropObjects
+  | Grant
+  | AlterDefaultPrivileges
+  | CreatePolicy
+  | AlterPolicy
+  | RenamePolicy
+  | DropPolicy
+  | SetRole
+  | DynamicSql
+  | Unparseable
+  | Unknown;
+
+export type StatementKind = Statement['kind'];
