@@ -386,6 +386,10 @@ describe('replay: reference fixture cases', () => {
     const file = last(result);
     const [event] = eventsOf(file, 'grant');
     expect(event?.allInSchemas).toEqual(['public']);
+    expect(event).toMatchObject({
+      objectKind: 'table',
+      written: [{ name: 'select', columns: null }],
+    });
     expect(event?.targets.map((t) => t.name.name)).toEqual(['orders', 'order_totals', 'audit_log']);
     expect(held(file.after, 'public.audit_log', 'anon')).toEqual(['select']);
     expect(held(file.after, 'public.todos', 'anon')).toEqual([]);
@@ -400,6 +404,8 @@ describe('replay: reference fixture cases', () => {
       ),
     );
     expect(eventsOf(sequences, 'grant')[0]).toMatchObject({
+      objectKind: 'sequence',
+      written: [{ name: 'usage', columns: null }],
       allInSchemas: ['public'],
       targets: [{ object: 'sequence', name: split('public.todos_id_seq') }],
     });

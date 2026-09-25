@@ -8,6 +8,7 @@
  */
 import type {
   PolicyCommand,
+  Privilege,
   QualifiedName,
   RelationKind,
   RoleRef,
@@ -62,6 +63,10 @@ export interface GrantEvent {
   readonly kind: 'grant';
   readonly at: SourceLocation;
   readonly action: 'grant' | 'revoke';
+  /** `table` for `ON [TABLE]` and `ALL TABLES`, `sequence` for `ON SEQUENCE` and `ALL SEQUENCES`. */
+  readonly objectKind: AclKind;
+  /** The privileges as written (`all` unexpanded, column lists kept), for fix text. */
+  readonly written: readonly Privilege[];
   /** `ON ALL TABLES | ALL SEQUENCES IN SCHEMA`: the schemas; `null` for named objects. */
   readonly allInSchemas: readonly string[] | null;
   readonly grantees: readonly Grantee[];

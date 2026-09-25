@@ -1,0 +1,11 @@
+{
+  "findings": [
+    {
+      "rule": "GL005",
+      "severity": "warn",
+      "file": "migrations/20261003000000_reporting.sql",
+      "line": 2,
+      "column": 1
+    }
+  ]
+}

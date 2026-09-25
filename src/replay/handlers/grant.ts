@@ -86,6 +86,8 @@ export function grant(stmt: Grant, ctx: ReplayContext): void {
     kind: 'grant',
     at,
     action: stmt.action,
+    objectKind: stmt.objectKind,
+    written: stmt.privileges,
     allInSchemas: stmt.target.kind === 'allInSchema' ? stmt.target.schemas : null,
     grantees,
     grantOptionOnly,
