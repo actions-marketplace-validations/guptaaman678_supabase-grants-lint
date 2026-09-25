@@ -1,0 +1,11 @@
+{
+  "findings": [
+    {
+      "rule": "GL007",
+      "severity": "warn",
+      "file": "migrations/20261002000000_opt_in.sql",
+      "line": 7,
+      "column": 1
+    }
+  ]
+}
