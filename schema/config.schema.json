@@ -1,0 +1,138 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/guptaaman678/supabase-grants-lint/main/schema/config.schema.json",
+  "title": "supabase-grants-lint config",
+  "description": "Configuration for supabase-grants-lint, in grants-lint.config.json or package.json#grantsLint. Every key is optional.",
+  "type": "object",
+  "additionalProperties": false,
+  "definitions": {
+    "nonEmptyString": { "type": "string", "pattern": "\\S" },
+    "ruleId": {
+      "type": "string",
+      "enum": [
+        "GL000",
+        "GL001",
+        "GL002",
+        "GL003",
+        "GL004",
+        "GL005",
+        "GL006",
+        "GL007",
+        "GL008",
+        "PARSE001",
+        "PARSE002"
+      ]
+    },
+    "ruleSetting": {
+      "type": "string",
+      "enum": ["off", "warn", "error"],
+      "description": "\"off\" disables the rule; \"warn\" and \"error\" set its severity."
+    }
+  },
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "URL or path of this schema, for editor validation and hover help."
+    },
+    "migrations": {
+      "description": "Where the SQL migrations are: a directory, a glob, a .sql file, or a list of these. Relative to the project directory (--dir).",
+      "default": "supabase/migrations",
+      "oneOf": [
+        { "$ref": "#/definitions/nonEmptyString" },
+        { "type": "array", "items": { "$ref": "#/definitions/nonEmptyString" }, "minItems": 1 }
+      ]
+    },
+    "schemas": {
+      "description": "Schemas whose tables, views and sequences are checked.",
+      "type": "array",
+      "items": { "$ref": "#/definitions/nonEmptyString" },
+      "minItems": 1,
+      "default": ["public"]
+    },
+    "since": {
+      "description": "Enforce rules only on migrations after this version. \"auto\" detects the opt-in migration (the last one that revokes default table privileges from anon, authenticated and service_role); \"none\" enforces every file; otherwise a migration version, the digits before the first \"_\" of a file name.",
+      "type": "string",
+      "pattern": "^(auto|none|[0-9]+)$",
+      "default": "auto"
+    },
+    "platformDefaults": {
+      "description": "Default privileges before the first migration. \"legacy\": postgres grants ALL on new tables and sequences in public to anon, authenticated and service_role (the platform before the change). \"explicit\": no default grants.",
+      "type": "string",
+      "enum": ["legacy", "explicit"],
+      "default": "legacy"
+    },
+    "platformRevokeAtSince": {
+      "description": "When since is a version (from the config or --since), assume the platform revoked the default table and sequence grants just before the first enforced migration, as for projects opted in from the dashboard or on 2026-10-30.",
+      "type": "boolean",
+      "default": true
+    },
+    "migrationRole": {
+      "description": "Role that runs the migrations and creates the relations; its default privileges apply to new relations.",
+      "type": "string",
+      "pattern": "\\S",
+      "default": "postgres"
+    },
+    "clientRoles": {
+      "description": "Roles that reach tables through the Data API with a user's token. Policies for these roles are checked.",
+      "type": "array",
+      "items": { "$ref": "#/definitions/nonEmptyString" },
+      "default": ["anon", "authenticated"]
+    },
+    "serviceRole": {
+      "description": "Role server code uses; it bypasses RLS but still needs grants.",
+      "type": "string",
+      "pattern": "\\S",
+      "default": "service_role"
+    },
+    "serviceOnly": {
+      "description": "Relations only server code uses. They are exempt from the client-role rules (GL002, GL003) and still checked by GL001.",
+      "type": "array",
+      "items": { "$ref": "#/definitions/nonEmptyString" },
+      "default": []
+    },
+    "postgresMajor": {
+      "description": "Postgres major version of the project. From 17, fix SQL also revokes MAINTAIN.",
+      "type": "integer",
+      "minimum": 10,
+      "default": 15
+    },
+    "rules": {
+      "description": "Turn rules off or change their severity, keyed by rule ID.",
+      "type": "object",
+      "propertyNames": { "$ref": "#/definitions/ruleId" },
+      "additionalProperties": { "$ref": "#/definitions/ruleSetting" },
+      "default": {}
+    },
+    "ignore": {
+      "description": "Suppressed findings. Each entry needs a rule and a non-empty reason; relation and file narrow it.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule", "reason"],
+        "properties": {
+          "rule": {
+            "description": "Rule ID to suppress.",
+            "allOf": [{ "$ref": "#/definitions/ruleId" }]
+          },
+          "relation": {
+            "description": "Only suppress findings on this relation, e.g. public.todos.",
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "file": {
+            "description": "Only suppress findings in this migration file.",
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "reason": {
+            "description": "Why the finding is suppressed. Required.",
+            "type": "string",
+            "pattern": "\\S"
+          }
+        }
+      }
+    }
+  }
+}
