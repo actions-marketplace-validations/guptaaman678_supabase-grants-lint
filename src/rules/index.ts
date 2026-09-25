@@ -23,6 +23,7 @@ import { GL004 } from './GL004.js';
 import { GL005 } from './GL005.js';
 import { GL006 } from './GL006.js';
 import { GL007 } from './GL007.js';
+import { GL008 } from './GL008.js';
 import type {
   FileContext,
   Finding,
@@ -36,7 +37,7 @@ import type {
 export type * from './types.js';
 
 /** Every implemented rule, in rule ID order. */
-export const RULES: readonly Rule[] = [GL001, GL002, GL003, GL004, GL005, GL006, GL007];
+export const RULES: readonly Rule[] = [GL001, GL002, GL003, GL004, GL005, GL006, GL007, GL008];
 
 const REPO = 'https://github.com/guptaaman678/supabase-grants-lint';
 

@@ -1,0 +1,12 @@
+{
+  "findings": [
+    {
+      "rule": "GL008",
+      "severity": "warn",
+      "file": "migrations/20261002000000_add_view.sql",
+      "line": 4,
+      "column": 1,
+      "relation": "public.order_totals"
+    }
+  ]
+}
