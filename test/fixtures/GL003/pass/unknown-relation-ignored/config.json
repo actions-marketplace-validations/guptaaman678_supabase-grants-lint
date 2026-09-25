@@ -1,0 +1,9 @@
+{
+  "ignore": [
+    {
+      "rule": "GL003",
+      "relation": "public.orders",
+      "reason": "created by the billing service, outside the migrations"
+    }
+  ]
+}
