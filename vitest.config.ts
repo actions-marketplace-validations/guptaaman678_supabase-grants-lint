@@ -22,6 +22,9 @@ export default defineConfig({
         'src/model/**': { branches: 100, functions: 100, lines: 100, statements: 100 },
         // Every statement family the replay handles has a test (spec T2.5).
         'src/replay/**': { branches: 100, functions: 100, lines: 100, statements: 100 },
+        // Severities, suppressions and ordering apply to every finding (spec T3.0).
+        'src/rules/**': { branches: 100, functions: 100, lines: 100, statements: 100 },
+        'src/fix/**': { branches: 100, functions: 100, lines: 100, statements: 100 },
       },
     },
   },
