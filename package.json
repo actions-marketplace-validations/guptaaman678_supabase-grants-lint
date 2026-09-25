@@ -1,0 +1,77 @@
+{
+  "name": "supabase-grants-lint",
+  "version": "0.0.0",
+  "description": "Replays Supabase SQL migrations and flags tables the Data API cannot reach once auto-grants are gone (PostgREST 42501).",
+  "keywords": [
+    "supabase",
+    "postgres",
+    "postgresql",
+    "rls",
+    "grants",
+    "linter",
+    "migrations",
+    "security",
+    "cli",
+    "github-action"
+  ],
+  "homepage": "https://github.com/guptaaman678/supabase-grants-lint#readme",
+  "bugs": {
+    "url": "https://github.com/guptaaman678/supabase-grants-lint/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guptaaman678/supabase-grants-lint.git"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Aman Gupta",
+    "url": "https://github.com/guptaaman678"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "supabase-grants-lint": "dist/cli/index.js"
+  },
+  "files": [
+    "dist/",
+    "schema/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "mutation": "stryker run",
+    "bench": "vitest bench --run --passWithNoTests",
+    "changeset": "changeset"
+  },
+  "devDependencies": {
+    "@changesets/cli": "3.0.3",
+    "@eslint/js": "10.0.1",
+    "@stryker-mutator/core": "10.0.0",
+    "@stryker-mutator/vitest-runner": "10.0.0",
+    "@types/node": "22.20.4",
+    "eslint": "10.11.0",
+    "prettier": "3.9.9",
+    "tsup": "8.5.1",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.70.1",
+    "vitest": "5.0.2"
+  }
+}
