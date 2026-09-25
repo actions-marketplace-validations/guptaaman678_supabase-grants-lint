@@ -1,0 +1,11 @@
+{
+  "findings": [
+    {
+      "rule": "GL006",
+      "severity": "error",
+      "file": "migrations/20261003000000_add_todos.sql",
+      "line": 3,
+      "column": 1
+    }
+  ]
+}
