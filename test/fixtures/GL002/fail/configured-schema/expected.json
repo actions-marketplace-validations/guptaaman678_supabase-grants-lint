@@ -1,0 +1,13 @@
+{
+  "findings": [
+    {
+      "rule": "GL002",
+      "severity": "error",
+      "file": "migrations/20261002000000_add_api_orders.sql",
+      "line": 2,
+      "column": 1,
+      "relation": "api.orders",
+      "role": "authenticated"
+    }
+  ]
+}
