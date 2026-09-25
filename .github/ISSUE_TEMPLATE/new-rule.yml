@@ -1,6 +1,6 @@
 name: New rule proposal
 description: Propose a new check within the project's scope (grants and RLS reachability)
-labels: ["new-rule"]
+labels: ['new-rule']
 body:
   - type: textarea
     id: problem

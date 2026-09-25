@@ -16,16 +16,16 @@ Node `>=22` is required (`.nvmrc` pins the version used in development).
 
 ## Commands
 
-| Command | Purpose |
-|---|---|
-| `npm run build` | build the CLI and library with tsup |
-| `npm test` | run the vitest suite |
-| `npm run test:watch` | run tests in watch mode |
-| `npm run lint` | ESLint |
-| `npm run typecheck` | `tsc --noEmit` in strict mode |
-| `npm run format` / `format:check` | Prettier |
-| `npm run mutation` | Stryker mutation testing on `src/model`, `src/replay`, `src/rules`, `src/fix` |
-| `npm run bench` | performance benchmark |
+| Command                           | Purpose                                                                       |
+| --------------------------------- | ----------------------------------------------------------------------------- |
+| `npm run build`                   | build the CLI and library with tsup                                           |
+| `npm test`                        | run the vitest suite                                                          |
+| `npm run test:watch`              | run tests in watch mode                                                       |
+| `npm run lint`                    | ESLint                                                                        |
+| `npm run typecheck`               | `tsc --noEmit` in strict mode                                                 |
+| `npm run format` / `format:check` | Prettier                                                                      |
+| `npm run mutation`                | Stryker mutation testing on `src/model`, `src/replay`, `src/rules`, `src/fix` |
+| `npm run bench`                   | performance benchmark                                                         |
 
 ## Fixture layout
 

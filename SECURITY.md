@@ -7,10 +7,10 @@ database or network in `check`, `doctor`, `explain` or `init` (v0.1). Security
 fixes are released against the latest `0.x` minor version. Once 1.0.0 ships,
 the latest major version receives security fixes.
 
-| Version | Supported |
-|---|---|
-| latest 0.x | yes |
-| older 0.x  | no |
+| Version    | Supported |
+| ---------- | --------- |
+| latest 0.x | yes       |
+| older 0.x  | no        |
 
 ## Reporting a vulnerability
 
