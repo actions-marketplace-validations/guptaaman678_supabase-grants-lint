@@ -227,6 +227,41 @@ describe('GL003 dead-policy', () => {
     ).toEqual(['error']);
   });
 
+  it('names the later file when the relation is only created after the policy', () => {
+    // Corpus shape (T7.3): a policy file sorts before the file that creates its table.
+    const findings = lint([
+      'create policy "r" on public.orders for select to anon using (true);',
+      'select 1;',
+      'create table public.orders (id int);',
+    ]);
+    expect(findings.map((f) => [f.severity, f.file, f.message])).toEqual([
+      [
+        'warn',
+        'supabase/migrations/20261002000000_m.sql',
+        'Policy r is on public.orders, which is only created later, in ' +
+          'supabase/migrations/20261004000000_m.sql: this file replays first, so replaying the ' +
+          'migrations (supabase db reset, a preview branch) fails here, and its grants cannot be ' +
+          'checked. Rename the files so the table is created first.',
+      ],
+    ]);
+    // A later file that creates another relation, or creates and drops it again, does not count.
+    const other = lint([
+      'create policy "r" on public.orders for select to anon using (true);',
+      'create table public.todos (id int);\ncreate table public.orders (id int);\ndrop table public.orders;',
+    ]);
+    expect(other.map((f) => f.message)).toEqual([
+      expect.stringContaining('which no migration creates'),
+    ]);
+    // Neither does an earlier file, or the policy's own file, when the relation is dropped first.
+    const earlier = lint([
+      'create table public.orders (id int);',
+      'drop table public.orders;\ncreate policy "r" on public.orders for select to anon using (true);',
+    ]);
+    expect(earlier.map((f) => f.message)).toEqual([
+      expect.stringContaining('which no migration creates'),
+    ]);
+  });
+
   it('checks a policy created earlier and altered in an enforced file, anchored at the ALTER', () => {
     const findings = lint([
       `${TODOS}\ngrant select on public.todos to anon;\ncreate policy "r" on public.todos for select to anon using (true);`,

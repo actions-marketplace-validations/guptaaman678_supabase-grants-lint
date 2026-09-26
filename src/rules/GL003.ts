@@ -2,8 +2,9 @@
  * GL003 dead-policy (spec §6.2): an RLS policy created or altered in an enforced file for a client
  * role that, at the end of that file, holds no privilege the policy's command needs. Postgres
  * checks table privileges before RLS, so the role's requests fail with 42501 and the policy is
- * access control that never applies. A policy on a relation the replay never saw created is
- * reported at warn level: the table was probably created outside the migrations.
+ * access control that never applies. A policy on a relation the replay has not seen created is
+ * reported at warn level: the table was probably created outside the migrations, or by a later
+ * file (then the message names it, since a replay fails at the policy).
  */
 import { DML_PRIVILEGES, type Grantee, PUBLIC } from '../model/acl.js';
 import type { Policy } from '../model/relations.js';
@@ -12,7 +13,7 @@ import type { SourceLocation } from '../parse/ir.js';
 import { qualified } from '../replay/context.js';
 import type { FileReplay } from '../replay/engine.js';
 import { isCheckedPolicyRole, rolesBehind } from './client-roles.js';
-import type { Rule, RuleFinding } from './types.js';
+import type { Rule, RuleContext, RuleFinding } from './types.js';
 
 /** The privileges that let a role use the policy: its command, or any DML privilege for `ALL`. */
 function needed(policy: Policy): readonly string[] {
@@ -27,14 +28,29 @@ function anchor(policy: Policy, file: FileReplay): SourceLocation {
     : policy.created;
 }
 
-function unknownRelation(policy: Policy, file: FileReplay): RuleFinding {
+/** The first file after `file` that creates the policy's relation, if any. */
+function createdLater(policy: Policy, file: FileReplay, ctx: RuleContext): string | undefined {
   const name = qualified(policy.relation);
+  return ctx.files
+    .slice(file.index + 1)
+    .find((later) => later.created.some((relation) => qualified(relation) === name))?.file;
+}
+
+function unknownRelation(policy: Policy, file: FileReplay, ctx: RuleContext): RuleFinding {
+  const name = qualified(policy.relation);
+  const later = createdLater(policy, file, ctx);
   return {
     at: anchor(policy, file),
     message:
-      `Policy ${quoteIdent(policy.name)} is on ${name}, which no migration creates (it was probably ` +
-      'created outside the migrations, for example in the dashboard), so its grants cannot be ' +
-      'checked. Create the table in a migration, or add an ignore entry if it is managed elsewhere.',
+      later === undefined
+        ? `Policy ${quoteIdent(policy.name)} is on ${name}, which no migration creates (it was ` +
+          'probably created outside the migrations, for example in the dashboard), so its grants ' +
+          'cannot be checked. Create the table in a migration, or add an ignore entry if it is ' +
+          'managed elsewhere.'
+        : `Policy ${quoteIdent(policy.name)} is on ${name}, which is only created later, in ` +
+          `${later}: this file replays first, so replaying the migrations (supabase db reset, a ` +
+          'preview branch) fails here, and its grants cannot be checked. Rename the files so the ' +
+          'table is created first.',
     relation: policy.relation,
     severity: 'warn',
   };
@@ -71,7 +87,7 @@ export const GL003: Rule = {
     return ctx.enforced.flatMap((file) =>
       file.policies.flatMap((policy): RuleFinding[] => {
         const relation = file.after.relation(policy.relation);
-        if (relation === undefined) return [unknownRelation(policy, file)];
+        if (relation === undefined) return [unknownRelation(policy, file, ctx)];
         if (ctx.isServiceOnly(relation)) return [];
         return policy.roles
           .filter((role) => isCheckedPolicyRole(ctx, role))

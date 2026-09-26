@@ -37,8 +37,8 @@ function finding(
     at: relation.created,
     message:
       `${name} still grants ${held.join(', ')} to ${roles.join(', ')}, left over from the ` +
-      'default privileges: the Data API never needs them, and TRUNCATE and REFERENCES are not ' +
-      'subject to row level security. Revoke them in the same migration.',
+      'default privileges or a grant all: the Data API never needs them, and TRUNCATE and ' +
+      'REFERENCES are not subject to row level security. Revoke them in the same migration.',
     relation,
     fix: revokeSql({ privileges, relation, grantees }),
   };

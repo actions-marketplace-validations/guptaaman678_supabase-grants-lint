@@ -56,8 +56,9 @@ describe('GL008 leftover-privileges', () => {
         severity: 'warn',
         message:
           'public.todos still grants truncate, references, trigger to anon, authenticated, left ' +
-          'over from the default privileges: the Data API never needs them, and TRUNCATE and ' +
-          'REFERENCES are not subject to row level security. Revoke them in the same migration.',
+          'over from the default privileges or a grant all: the Data API never needs them, and ' +
+          'TRUNCATE and REFERENCES are not subject to row level security. Revoke them in the ' +
+          'same migration.',
         file: 'supabase/migrations/20261002000000_m.sql',
         line: 3,
         column: 3,
@@ -67,6 +68,17 @@ describe('GL008 leftover-privileges', () => {
       },
     ]);
     expect(findings[0]?.message).not.toContain(String.fromCodePoint(0x2014)); // G7
+  });
+
+  it('names a grant all as a possible source, since explicit grants leave them too', () => {
+    // Corpus shape (T7.3): opted in fully, then `grant all` to a client role on the new table.
+    const findings = lint(`${TODOS}\ngrant all on public.todos to authenticated;`, {}, FULL_OPT_IN);
+    expect(findings.map((f) => f.message)).toEqual([
+      expect.stringContaining(
+        'still grants truncate, references, trigger to authenticated, left over from the ' +
+          'default privileges or a grant all:',
+      ),
+    ]);
   });
 
   it('lists every leftover privilege any of the roles holds', () => {

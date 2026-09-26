@@ -65,7 +65,7 @@
     {
       "ruleId": "GL008",
       "severity": "warn",
-      "message": "public.orders still grants truncate, references, trigger to authenticated, left over from the default privileges: the Data API never needs them, and TRUNCATE and REFERENCES are not subject to row level security. Revoke them in the same migration.",
+      "message": "public.orders still grants truncate, references, trigger to authenticated, left over from the default privileges or a grant all: the Data API never needs them, and TRUNCATE and REFERENCES are not subject to row level security. Revoke them in the same migration.",
       "file": "supabase/migrations/20261003000000_orders.sql",
       "line": 1,
       "column": 1,

@@ -10,7 +10,7 @@ supabase/migrations/20261003000000_orders.sql
   1:1   error  GL002  public.orders has RLS policies for anon, but anon holds no select, insert, update or delete privilege on it: every Data API request as anon fails with 42501 permission denied before any policy runs. Grant anon the commands its policies cover in the same migration.
                fix   grant select on public.orders to anon;
                docs  https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL002.md
-  1:1   warn   GL008  public.orders still grants truncate, references, trigger to authenticated, left over from the default privileges: the Data API never needs them, and TRUNCATE and REFERENCES are not subject to row level security. Revoke them in the same migration.
+  1:1   warn   GL008  public.orders still grants truncate, references, trigger to authenticated, left over from the default privileges or a grant all: the Data API never needs them, and TRUNCATE and REFERENCES are not subject to row level security. Revoke them in the same migration.
                fix   revoke truncate, references, trigger on public.orders from authenticated;
                docs  https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL008.md
   12:1  warn   GL005  This grant on all sequences in schema public to authenticated applies to every sequence that exists there at this point (1 sequence), including any deliberately narrowed earlier, and to none created later. Grant on the sequences by name instead.
