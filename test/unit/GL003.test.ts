@@ -353,7 +353,7 @@ describe('GL002 takes precedence over GL003 on a new relation', () => {
 
 describe('GL003 in the rule list', () => {
   it('is registered after GL002', () => {
-    expect(RULES.map((r) => r.id).slice(0, 3)).toEqual(['GL001', 'GL002', 'GL003']);
+    expect(RULES.map((r) => r.id).slice(1, 4)).toEqual(['GL001', 'GL002', 'GL003']);
     expect(GL003).toMatchObject({ name: 'dead-policy', defaultSeverity: 'error' });
   });
 

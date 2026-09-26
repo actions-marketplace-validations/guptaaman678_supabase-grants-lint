@@ -4,6 +4,7 @@
  * ordering. Rules never change the model: the catalog is immutable and the context is frozen.
  */
 import type { Config, RuleId } from '../config/defaults.js';
+import type { DiscoveryNotice } from '../load/discover.js';
 import type { Grantee } from '../model/acl.js';
 import type { RelationName } from '../model/relations.js';
 import type { SourceLocation } from '../parse/ir.js';
@@ -25,6 +26,8 @@ export interface RuleContext {
   readonly files: readonly FileContext[];
   /** The files in the enforcement window, in replay order. */
   readonly enforced: readonly FileContext[];
+  /** Migration files discovery found without a version prefix (PARSE001). */
+  readonly discovery: readonly DiscoveryNotice[];
   /** Whether rules check relations in this schema (config `schemas`). */
   inScope(name: RelationName): boolean;
   /** Config `clientRoles` (default `anon`, `authenticated`). */
@@ -76,7 +79,7 @@ export interface Finding {
 
 /** Something the user should know that is not a finding (JSON `notices[]`, §6.3). */
 export interface Notice {
-  readonly code: 'unused-suppression' | 'unused-ignore';
+  readonly code: 'unused-suppression' | 'unused-ignore' | 'platform-revoke' | 'invalid-privilege';
   readonly message: string;
   readonly file?: string;
   readonly line?: number;

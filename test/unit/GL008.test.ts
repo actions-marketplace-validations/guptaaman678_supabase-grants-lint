@@ -202,7 +202,7 @@ describe('GL008 leftover-privileges', () => {
 
 describe('GL008 in the rule list', () => {
   it('is registered after GL007', () => {
-    expect(RULES.map((r) => r.id).slice(0, 8)).toEqual([
+    expect(RULES.map((r) => r.id).slice(1, 9)).toEqual([
       'GL001',
       'GL002',
       'GL003',

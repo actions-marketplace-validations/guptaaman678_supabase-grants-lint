@@ -83,7 +83,11 @@ function lint(fixture: Fixture, expected: Expected) {
     projectDir: dir,
     ...(existsSync(path.join(dir, 'config.json')) ? { configFile: 'config.json' } : {}),
   });
-  const { files } = discoverMigrations({ migrations: 'migrations', projectDir: dir, cwd: dir });
+  const { files, notices } = discoverMigrations({
+    migrations: 'migrations',
+    projectDir: dir,
+    cwd: dir,
+  });
   const parsed = files.map((file) => parser.parse(readFileSync(file.path, 'utf8'), file.relPath));
   const replay = replayWithWindow(
     files.map((file, i) => ({
@@ -99,6 +103,7 @@ function lint(fixture: Fixture, expected: Expected) {
     replay,
     suppressions: parsed.flatMap((p) => p.suppressions),
     suppressionProblems: parsed.flatMap((p) => p.suppressionProblems),
+    discovery: notices,
     rules: RULES.filter((rule) => ids.includes(rule.id)),
   });
 }

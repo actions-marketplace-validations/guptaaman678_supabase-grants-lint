@@ -211,7 +211,7 @@ describe('checked client roles', () => {
 
 describe('GL004 in the rule list', () => {
   it('is registered after GL003', () => {
-    expect(RULES.map((r) => r.id).slice(0, 4)).toEqual(['GL001', 'GL002', 'GL003', 'GL004']);
+    expect(RULES.map((r) => r.id).slice(1, 5)).toEqual(['GL001', 'GL002', 'GL003', 'GL004']);
     expect(GL004).toMatchObject({ name: 'serial-sequence-usage', defaultSeverity: 'error' });
   });
 

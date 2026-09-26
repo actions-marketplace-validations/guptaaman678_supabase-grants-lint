@@ -1,0 +1,18 @@
+{
+  "findings": [
+    {
+      "rule": "PARSE001",
+      "severity": "info",
+      "file": "migrations/20261001000000_add_todos.sql",
+      "line": 1,
+      "column": 1
+    },
+    {
+      "rule": "PARSE001",
+      "severity": "info",
+      "file": "migrations/20261001000000_add_todos.sql",
+      "line": 9,
+      "column": 1
+    }
+  ]
+}

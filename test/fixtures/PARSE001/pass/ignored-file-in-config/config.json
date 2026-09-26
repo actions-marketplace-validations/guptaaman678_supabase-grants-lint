@@ -1,0 +1,9 @@
+{
+  "ignore": [
+    {
+      "rule": "PARSE001",
+      "file": "seed.sql",
+      "reason": "seed data, applied by supabase db reset"
+    }
+  ]
+}

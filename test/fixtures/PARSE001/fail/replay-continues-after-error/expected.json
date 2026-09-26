@@ -1,0 +1,21 @@
+{
+  "rules": ["GL001", "PARSE001"],
+  "findings": [
+    {
+      "rule": "PARSE001",
+      "severity": "info",
+      "file": "migrations/20261001000000_add_todos.sql",
+      "line": 1,
+      "column": 1
+    },
+    {
+      "rule": "GL001",
+      "severity": "error",
+      "file": "migrations/20261001000000_add_todos.sql",
+      "line": 2,
+      "column": 1,
+      "relation": "public.todos",
+      "role": "service_role"
+    }
+  ]
+}

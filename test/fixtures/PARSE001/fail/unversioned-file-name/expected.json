@@ -1,0 +1,11 @@
+{
+  "findings": [
+    {
+      "rule": "PARSE001",
+      "severity": "info",
+      "file": "migrations/add_orders.sql",
+      "line": 1,
+      "column": 1
+    }
+  ]
+}

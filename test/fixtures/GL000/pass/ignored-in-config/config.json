@@ -1,0 +1,8 @@
+{
+  "ignore": [
+    {
+      "rule": "GL000",
+      "reason": "opted in from the dashboard, since set per branch"
+    }
+  ]
+}

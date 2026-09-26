@@ -185,7 +185,7 @@ describe('GL006 default-privileges-regrant', () => {
 
 describe('GL006 in the rule list', () => {
   it('is registered after GL005', () => {
-    expect(RULES.map((r) => r.id).slice(0, 6)).toEqual([
+    expect(RULES.map((r) => r.id).slice(1, 7)).toEqual([
       'GL001',
       'GL002',
       'GL003',

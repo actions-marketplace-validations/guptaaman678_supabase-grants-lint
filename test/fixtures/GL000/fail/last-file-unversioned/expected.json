@@ -1,0 +1,19 @@
+{
+  "rules": ["GL000", "PARSE001"],
+  "findings": [
+    {
+      "rule": "GL000",
+      "severity": "warn",
+      "file": "migrations/seed.sql",
+      "line": 1,
+      "column": 1
+    },
+    {
+      "rule": "PARSE001",
+      "severity": "info",
+      "file": "migrations/seed.sql",
+      "line": 1,
+      "column": 1
+    }
+  ]
+}

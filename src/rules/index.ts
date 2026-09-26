@@ -6,6 +6,7 @@
  */
 import { type Config, RULE_IDS, type RuleId } from '../config/defaults.js';
 import { ConfigError } from '../errors.js';
+import type { DiscoveryNotice } from '../load/discover.js';
 import { type Grantee, PUBLIC } from '../model/acl.js';
 import type { RelationName } from '../model/relations.js';
 import {
@@ -13,9 +14,10 @@ import {
   type SuppressionProblem,
   suppressionError,
 } from '../parse/suppressions.js';
-import { qualified } from '../replay/context.js';
+import { locate, type PlatformRevokeEvent, qualified } from '../replay/context.js';
 import type { WindowedReplay } from '../replay/since.js';
 import { version } from '../version.js';
+import { GL000 } from './GL000.js';
 import { GL001 } from './GL001.js';
 import { GL002 } from './GL002.js';
 import { GL003 } from './GL003.js';
@@ -24,6 +26,8 @@ import { GL005 } from './GL005.js';
 import { GL006 } from './GL006.js';
 import { GL007 } from './GL007.js';
 import { GL008 } from './GL008.js';
+import { PARSE001 } from './PARSE001.js';
+import { PARSE002 } from './PARSE002.js';
 import type {
   FileContext,
   Finding,
@@ -37,7 +41,19 @@ import type {
 export type * from './types.js';
 
 /** Every implemented rule, in rule ID order. */
-export const RULES: readonly Rule[] = [GL001, GL002, GL003, GL004, GL005, GL006, GL007, GL008];
+export const RULES: readonly Rule[] = [
+  GL000,
+  GL001,
+  GL002,
+  GL003,
+  GL004,
+  GL005,
+  GL006,
+  GL007,
+  GL008,
+  PARSE001,
+  PARSE002,
+];
 
 const REPO = 'https://github.com/guptaaman678/supabase-grants-lint';
 
@@ -68,7 +84,11 @@ export function matchesFile(pattern: string, file: string): boolean {
   return file === normal || file.endsWith(`/${normal}`);
 }
 
-export function createContext(config: Config, replay: WindowedReplay): RuleContext {
+export function createContext(
+  config: Config,
+  replay: WindowedReplay,
+  discovery: readonly DiscoveryNotice[] = [],
+): RuleContext {
   const files = Object.freeze(
     replay.files.map((file): FileContext =>
       Object.freeze({ ...file, enforced: replay.isEnforced(file) }),
@@ -79,6 +99,7 @@ export function createContext(config: Config, replay: WindowedReplay): RuleConte
     replay,
     files,
     enforced: Object.freeze(files.filter((file) => file.enforced)),
+    discovery: Object.freeze([...discovery]),
     inScope: (name: RelationName) => replay.inScope(name),
     isClientRole: (role: Grantee) => typeof role === 'string' && config.clientRoles.includes(role),
     isServiceOnly: (name: RelationName) =>
@@ -93,6 +114,10 @@ export interface RunRulesOptions {
   readonly suppressions?: readonly Suppression[];
   /** Malformed suppression comments: any of them is a usage error (exit 2). */
   readonly suppressionProblems?: readonly SuppressionProblem[];
+  /** Discovery's notices about files without a version prefix; PARSE001 reports them. */
+  readonly discovery?: readonly DiscoveryNotice[];
+  /** `--strict-parse`: PARSE001 runs as an error, whatever config `rules` says. */
+  readonly strictParse?: boolean;
   /** Defaults to `RULES`. */
   readonly rules?: readonly Rule[];
 }
@@ -109,7 +134,15 @@ interface Candidate {
  * this guards the programmatic API).
  */
 export function runRules(options: RunRulesOptions): RuleRunResult {
-  const { config, replay, suppressions = [], suppressionProblems = [], rules = RULES } = options;
+  const {
+    config,
+    replay,
+    suppressions = [],
+    suppressionProblems = [],
+    discovery = [],
+    strictParse = false,
+    rules = RULES,
+  } = options;
   if (suppressionProblems.length > 0) throw suppressionError(suppressionProblems);
   const reasonless = config.ignore.flatMap((entry, i) =>
     entry.reason.trim() === ''
@@ -123,11 +156,11 @@ export function runRules(options: RunRulesOptions): RuleRunResult {
   );
   if (reasonless.length > 0) throw new ConfigError('options.config', reasonless);
 
-  const ctx = createContext(config, replay);
+  const ctx = createContext(config, replay, discovery);
   const ran = new Set<RuleId>();
   let candidates: Candidate[] = [];
   for (const rule of rules) {
-    const setting = config.rules[rule.id];
+    const setting = strictParse && rule.id === 'PARSE001' ? 'error' : config.rules[rule.id];
     if (setting === 'off') continue;
     ran.add(rule.id);
     for (const found of rule.check(ctx)) {
@@ -210,6 +243,48 @@ export function runRules(options: RunRulesOptions): RuleRunResult {
 
   findings.sort(compareFindings(order));
   return { findings, notices };
+}
+
+/**
+ * Notices the replay itself produces, in replay order: the platform revoke assumed before the
+ * first enforced file (ADR-002 item 1), and privileges not valid for the object they were granted
+ * on, which the replay did not record. Kept apart from `runRules` so that rule fixtures only see
+ * their rule's notices.
+ */
+export function replayNotices(replay: WindowedReplay): Notice[] {
+  return replay.files.flatMap((file) =>
+    file.events.flatMap((event): Notice[] => {
+      if (event.kind === 'platformRevoke') {
+        return [
+          {
+            code: 'platform-revoke',
+            message: platformRevokeMessage(event, String(replay.since.value)),
+            ...locate(event.at),
+          },
+        ];
+      }
+      if (event.kind === 'skipped' && event.reason === 'invalid-privilege') {
+        return [{ code: 'invalid-privilege', message: `${event.message}.`, ...locate(event.at) }];
+      }
+      return [];
+    }),
+  );
+}
+
+function platformRevokeMessage(event: PlatformRevokeEvent, since: string): string {
+  const removed = (['table', 'sequence'] as const).flatMap((object) => {
+    const privileges = new Set(
+      event.removed.filter((r) => r.object === object).flatMap((r) => r.privileges),
+    );
+    return privileges.size === 0 ? [] : [`${[...privileges].join(', ')} on new ${object}s`];
+  });
+  const grantees = [...new Set(event.removed.map((r) => r.grantee))];
+  return (
+    `Assumed the platform revoke before this file (since ${since}): removed the default ` +
+    `${removed.join(' and ')} that ${event.creator} gave ${grantees.join(', ')} in schema ` +
+    `${event.schema}, as opting in from the dashboard or the 2026-10-30 change does. Set ` +
+    'platformRevokeAtSince to false if this project still grants them automatically.'
+  );
 }
 
 /** When GL002 fires for (relation, role) in a file, GL003 findings for the same are dropped. */

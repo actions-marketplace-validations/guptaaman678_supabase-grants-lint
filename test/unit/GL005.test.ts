@@ -197,7 +197,7 @@ describe('GL005 blanket-grant', () => {
 
 describe('GL005 in the rule list', () => {
   it('is registered after GL004', () => {
-    expect(RULES.map((r) => r.id).slice(0, 5)).toEqual([
+    expect(RULES.map((r) => r.id).slice(1, 6)).toEqual([
       'GL001',
       'GL002',
       'GL003',

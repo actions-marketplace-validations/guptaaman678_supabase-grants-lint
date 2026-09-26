@@ -226,7 +226,7 @@ describe('GL007 replay-reenables-defaults', () => {
 
 describe('GL007 in the rule list', () => {
   it('is registered after GL006', () => {
-    expect(RULES.map((r) => r.id).slice(0, 7)).toEqual([
+    expect(RULES.map((r) => r.id).slice(1, 8)).toEqual([
       'GL001',
       'GL002',
       'GL003',

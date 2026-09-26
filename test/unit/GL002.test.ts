@@ -274,7 +274,7 @@ describe('client roles', () => {
 
 describe('GL002 in the rule list', () => {
   it('is registered after GL001', () => {
-    expect(RULES.map((r) => r.id).slice(0, 2)).toEqual(['GL001', 'GL002']);
+    expect(RULES.map((r) => r.id).slice(1, 3)).toEqual(['GL001', 'GL002']);
     expect(GL002).toMatchObject({ name: 'unreachable-new-relation', defaultSeverity: 'error' });
   });
 
