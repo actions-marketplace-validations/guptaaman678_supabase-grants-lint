@@ -58,7 +58,7 @@
               "id": "GL004",
               "name": "serial-sequence-usage",
               "shortDescription": {
-                "text": "A client role can insert into a new table but holds no usage on its serial sequence, so inserts fail with 42501."
+                "text": "A client role can insert into a new table but holds no usage (or update) on its serial sequence, so inserts fail with 42501."
               },
               "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL004.md",
               "defaultConfiguration": {
@@ -172,7 +172,7 @@
           "ruleIndex": 4,
           "level": "error",
           "message": {
-            "text": "public.todos has serial column id, and authenticated can insert into it but holds no usage on its sequence public.todos_id_seq: inserts that rely on the column default fail with 42501 permission denied for sequence todos_id_seq. Grant authenticated usage on the sequence in the same migration.\nFix: grant usage on sequence public.todos_id_seq to authenticated;"
+            "text": "public.todos has serial column id, and authenticated can insert into it but holds no usage (or update) on its sequence public.todos_id_seq: inserts that rely on the column default fail with 42501 permission denied for sequence todos_id_seq. Grant authenticated usage on the sequence in the same migration.\nFix: grant usage on sequence public.todos_id_seq to authenticated;"
           },
           "locations": [
             {

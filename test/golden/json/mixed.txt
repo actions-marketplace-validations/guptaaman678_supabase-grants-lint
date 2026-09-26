@@ -40,7 +40,7 @@
     {
       "ruleId": "GL004",
       "severity": "error",
-      "message": "public.todos has serial column id, and authenticated can insert into it but holds no usage on its sequence public.todos_id_seq: inserts that rely on the column default fail with 42501 permission denied for sequence todos_id_seq. Grant authenticated usage on the sequence in the same migration.",
+      "message": "public.todos has serial column id, and authenticated can insert into it but holds no usage (or update) on its sequence public.todos_id_seq: inserts that rely on the column default fail with 42501 permission denied for sequence todos_id_seq. Grant authenticated usage on the sequence in the same migration.",
       "file": "supabase/migrations/20261002000000_todos.sql",
       "line": 1,
       "column": 1,

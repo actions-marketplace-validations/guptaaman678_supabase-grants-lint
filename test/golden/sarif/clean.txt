@@ -58,7 +58,7 @@
               "id": "GL004",
               "name": "serial-sequence-usage",
               "shortDescription": {
-                "text": "A client role can insert into a new table but holds no usage on its serial sequence, so inserts fail with 42501."
+                "text": "A client role can insert into a new table but holds no usage (or update) on its serial sequence, so inserts fail with 42501."
               },
               "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL004.md",
               "defaultConfiguration": {

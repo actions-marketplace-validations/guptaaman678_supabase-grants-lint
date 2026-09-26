@@ -52,7 +52,7 @@ describe('GL004 serial-sequence-usage', () => {
         severity: 'error',
         message:
           'public.orders has serial column id, and authenticated can insert into it but holds no ' +
-          'usage on its sequence public.orders_id_seq: inserts that rely on the column default ' +
+          'usage (or update) on its sequence public.orders_id_seq: inserts that rely on the column default ' +
           'fail with 42501 permission denied for sequence orders_id_seq. Grant authenticated ' +
           'usage on the sequence in the same migration.',
         file: 'supabase/migrations/20261002000000_m.sql',
@@ -95,15 +95,19 @@ describe('GL004 serial-sequence-usage', () => {
     }
   });
 
-  it('is not satisfied by select or update on the sequence (spec §6.2: usage)', () => {
-    const findings = lint(
-      [
-        ORDERS,
-        'grant insert on public.orders to authenticated;',
-        'grant select, update on sequence public.orders_id_seq to authenticated;',
-      ].join('\n'),
+  it('is satisfied by update, not by select, on the sequence (ADR-008: nextval accepts either)', () => {
+    const insert = 'grant insert on public.orders to authenticated;';
+    const select = lint(
+      `${ORDERS}\n${insert}\ngrant select on sequence public.orders_id_seq to authenticated;`,
     );
-    expect(findings.map((f) => f.role)).toEqual(['authenticated']);
+    expect(select.map((f) => f.role)).toEqual(['authenticated']);
+    for (const grant of [
+      'grant update on sequence public.orders_id_seq to authenticated;',
+      'grant update on sequence orders_id_seq to public;',
+      'grant update on all sequences in schema public to authenticated;',
+    ]) {
+      expect(lint(`${ORDERS}\n${insert}\n${grant}`), grant).toEqual([]);
+    }
   });
 
   it('counts grants later in the same file, not grants in a later file', () => {
