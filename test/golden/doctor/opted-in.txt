@@ -1,0 +1,25 @@
+supabase-grants-lint doctor: readiness for 2026-10-30
+Replayed 3 migration files: 2 relations in schema public after the last one.
+
+Opt-in status
+  Opted in by supabase/migrations/20261001000000_opt_in.sql:2. check enforces the 1 migration file
+  after it.
+
+Replay trap
+  No migration re-enables automatic grants for new relations.
+  supabase/config.toml sets [api] auto_expose_new_tables = false, so local resets revoke the
+  automatic grants as production does.
+
+History exposure
+  Replayed without automatic grants (since none, platformDefaults explicit), 1 of the 2 relations
+  the migrations create would be unreachable through the Data API for these roles:
+  - public.orders (service_role, authenticated) at supabase/migrations/20260901000000_orders.sql:1
+  Production keeps the grants these relations already have, but a database built from the migrations
+  without automatic grants (a new project, a local reset with auto_expose_new_tables = false) gives
+  them none.
+
+Next steps
+  1. Grant the relations listed under History exposure what their roles need, in a new migration, so
+     a database built from the migrations can reach them.
+  2. Lint every new migration in CI: supabase-grants-lint init writes grants-lint.config.json and a
+     GitHub workflow that runs check.

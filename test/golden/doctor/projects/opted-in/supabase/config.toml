@@ -1,0 +1,4 @@
+[api]
+enabled = true
+# Match production: new tables are not exposed automatically.
+auto_expose_new_tables = false

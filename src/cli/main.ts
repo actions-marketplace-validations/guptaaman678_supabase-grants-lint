@@ -6,6 +6,7 @@ import { UsageError } from '../errors.js';
 import { version } from '../version.js';
 import { booleanOption, parseCommandArgs, suggestCommand } from './args.js';
 import { check } from './commands/check.js';
+import { doctor } from './commands/doctor.js';
 import { ExitCode } from './exit-codes.js';
 import { type Io, processIo } from './io.js';
 import { COMMAND_USAGE, usage } from './usage.js';
@@ -52,6 +53,7 @@ async function dispatch(argv: readonly string[], io: Io): Promise<ExitCode> {
     case 'check':
       return check(rest, io);
     case 'doctor':
+      return doctor(rest, io);
     case 'explain':
     case 'init':
       if (rest.includes('--help') || rest.includes('-h')) {

@@ -1,0 +1,27 @@
+supabase-grants-lint doctor: readiness for 2026-10-30
+Replayed 3 migration files: 2 relations in schema public after the last one.
+
+Opt-in status
+  Opted in by supabase/migrations/20261001000000_opt_in.sql:2. check enforces the 1 migration file
+  after it.
+
+Replay trap
+  GL007 error at supabase/migrations/20261005000000_audit_log.sql:1: Replaying these migrations
+  (supabase db reset, a preview branch) leaves default privileges that give anon select on new
+  tables postgres creates in schema public, so new relations get grants there that production, with
+  automatic grants off, does not give them. Revoke them in a new migration.
+  Fix:
+    alter default privileges for role postgres in schema public revoke all on tables from anon;
+  supabase/config.toml sets [api] auto_expose_new_tables = true: supabase db reset locally gives new
+  tables grants production will not have; set auto_expose_new_tables = false.
+
+History exposure
+  Replayed without automatic grants (since none, platformDefaults explicit), none of the 2 relations
+  the migrations create would be unreachable through the Data API.
+
+Next steps
+  1. Remove the default grants the migrations re-enable, in a new migration:
+       alter default privileges for role postgres in schema public revoke all on tables from anon;
+  2. Set auto_expose_new_tables = false under [api] in supabase/config.toml.
+  3. Lint every new migration in CI: supabase-grants-lint init writes grants-lint.config.json and a
+     GitHub workflow that runs check.

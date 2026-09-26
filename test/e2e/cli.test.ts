@@ -63,6 +63,19 @@ describe('exit code 0', () => {
     expect(code).toBe(0);
   });
 
+  it('runs doctor on a project that check fails, and still exits 0', () => {
+    const dir = 'test/golden/doctor/projects/replay-trap';
+    expect(cli(['check', '--dir', dir]).code).toBe(1);
+    const { code, stdout, stderr } = cli(['doctor', '--dir', dir]);
+    expect(stderr).toBe('');
+    expect(stdout).toMatch(/^supabase-grants-lint doctor: readiness for 2026-10-30\n/);
+    expect(stdout.replace(/\n +/g, ' ')).toContain(
+      `GL007 error at ${dir}/supabase/migrations/20261005000000_audit_log.sql:1:`,
+    );
+    expect(stdout).not.toContain('\u001b[');
+    expect(code).toBe(0);
+  });
+
   it('allows warnings when --max-warnings is not given or not exceeded', () => {
     expect(cli(['check', '--dir', `${PROJECTS}/warnings`]).code).toBe(0);
     expect(cli(['check', '--dir', `${PROJECTS}/warnings`, '--max-warnings', '1']).code).toBe(0);

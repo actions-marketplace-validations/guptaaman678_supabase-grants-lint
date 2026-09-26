@@ -164,8 +164,8 @@ describe('run', () => {
 
   it('reports commands that are not built yet as usage errors', async () => {
     const { io, stderr } = fakeIo();
-    expect(await run(['doctor'], io)).toBe(ExitCode.Usage);
-    expect(stderr()).toContain('doctor is not available in this build yet.');
+    expect(await run(['explain', 'public.todos'], io)).toBe(ExitCode.Usage);
+    expect(stderr()).toContain('explain is not available in this build yet.');
   });
 
   it.each([

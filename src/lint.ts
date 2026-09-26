@@ -7,8 +7,9 @@ import path from 'node:path';
 import type { Config } from './config/defaults.js';
 import { loadConfig } from './config/load.js';
 import { validateConfig } from './config/validate.js';
-import { discoverMigrations } from './load/discover.js';
-import { loadParser } from './parse/adapter.js';
+import { discoverMigrations, type DiscoveryNotice } from './load/discover.js';
+import { loadParser, type ParsedFile } from './parse/adapter.js';
+import type { ReplayInput } from './replay/engine.js';
 import { replayWithWindow, type ResolvedSince } from './replay/since.js';
 import { type Finding, type Notice, replayNotices, runRules } from './rules/index.js';
 
@@ -46,12 +47,26 @@ export interface LintResult {
   readonly notices: readonly Notice[];
 }
 
+/** A project's config and parsed migrations, before any replay. */
+export interface LoadedProject {
+  /** The resolved working directory; reported paths are relative to it. */
+  readonly cwd: string;
+  /** The resolved `--dir`. */
+  readonly projectDir: string;
+  readonly config: Config;
+  /** The validated `--since` flag, if given. */
+  readonly cliSince: string | undefined;
+  readonly discovery: readonly DiscoveryNotice[];
+  /** One per migration file, in replay order. */
+  readonly inputs: readonly ReplayInput[];
+  readonly parsed: readonly ParsedFile[];
+}
+
 /**
- * Lints a project's migrations. Rejects with a `UsageError` (exit 2) for a bad config, path or
- * suppression comment.
+ * Loads the config, discovers the migrations and parses them (`check` and `doctor`). Rejects with
+ * a `UsageError` (exit 2) for a bad config or path.
  */
-export async function lint(options: LintOptions = {}): Promise<LintResult> {
-  const started = performance.now();
+export async function loadProject(options: LintOptions = {}): Promise<LoadedProject> {
   const cwd = path.resolve(options.cwd ?? process.cwd());
   const projectDir = path.resolve(cwd, options.dir ?? '.');
   const cliSince =
@@ -72,14 +87,22 @@ export async function lint(options: LintOptions = {}): Promise<LintResult> {
 
   const parser = await loadParser();
   const parsed = files.map((file) => parser.parse(readFileSync(file.path, 'utf8'), file.relPath));
-  const replay = replayWithWindow(
-    files.map((file, i) => ({
-      file: file.relPath,
-      version: file.version,
-      statements: parsed[i]?.statements ?? [],
-    })),
-    { ...config, cliSince },
-  );
+  const inputs = files.map((file, i) => ({
+    file: file.relPath,
+    version: file.version,
+    statements: parsed[i]?.statements ?? [],
+  }));
+  return { cwd, projectDir, config, cliSince, discovery, inputs, parsed };
+}
+
+/**
+ * Lints a project's migrations. Rejects with a `UsageError` (exit 2) for a bad config, path or
+ * suppression comment.
+ */
+export async function lint(options: LintOptions = {}): Promise<LintResult> {
+  const started = performance.now();
+  const { config, cliSince, discovery, inputs, parsed } = await loadProject(options);
+  const replay = replayWithWindow(inputs, { ...config, cliSince });
   const result = runRules({
     config,
     replay,
@@ -98,7 +121,7 @@ export async function lint(options: LintOptions = {}): Promise<LintResult> {
     findings: result.findings,
     notices,
     summary: {
-      files: files.length,
+      files: inputs.length,
       relations: replay.final.relations().filter((relation) => replay.inScope(relation)).length,
       errors: count('error'),
       warnings: count('warn'),

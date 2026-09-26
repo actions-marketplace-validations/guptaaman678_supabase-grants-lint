@@ -1,0 +1,38 @@
+supabase-grants-lint doctor: readiness for 2026-10-30
+Replayed 2 migration files: 2 relations in schema public after the last one.
+
+Opt-in status
+  No opt-in migration found. If your project was opted in from the dashboard, or you are past
+  2026-10-30, set since to the last migration applied before that
+  (supabase-grants-lint init --since next).
+  1 statement or file could not be modelled (PARSE001, PARSE002); run supabase-grants-lint check to
+  see them.
+
+Replay trap
+  No migration re-enables automatic grants for new relations.
+  supabase/config.toml does not set [api] auto_expose_new_tables (unset means true on Supabase CLI
+  v2.116.0 and later): supabase db reset locally gives new tables grants production will not have;
+  set auto_expose_new_tables = false.
+
+History exposure
+  Replayed without automatic grants (since none, platformDefaults explicit), 1 of the 2 relations
+  the migrations create would be unreachable through the Data API for these roles:
+  - public.todos (service_role, authenticated) at supabase/migrations/20260901000000_todos.sql:1
+  Production keeps the grants these relations already have, but a database built from the migrations
+  without automatic grants (a new project, a local reset with auto_expose_new_tables = false) gives
+  them none.
+
+Next steps
+  1. Opt in with a new migration (supabase migration new revoke_automatic_grants) containing:
+       alter default privileges for role postgres in schema public
+         revoke all on tables from anon, authenticated, service_role;
+       alter default privileges for role postgres in schema public
+         revoke all on sequences from anon, authenticated, service_role;
+  2. If the project was already opted in from the dashboard, run
+     supabase-grants-lint init --since next instead, so check enforces only the migrations you add
+     from now on.
+  3. Set auto_expose_new_tables = false under [api] in supabase/config.toml.
+  4. Grant the relations listed under History exposure what their roles need, in a new migration, so
+     a database built from the migrations can reach them.
+  5. Lint every new migration in CI: supabase-grants-lint init writes grants-lint.config.json and a
+     GitHub workflow that runs check.
