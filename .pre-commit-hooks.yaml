@@ -1,0 +1,7 @@
+- id: supabase-grants-lint
+  name: supabase-grants-lint
+  description: Lints Supabase SQL migrations for grants the Data API needs once auto-grants are gone.
+  entry: supabase-grants-lint check
+  language: node
+  files: ^supabase/migrations/.*\.sql$
+  pass_filenames: false
