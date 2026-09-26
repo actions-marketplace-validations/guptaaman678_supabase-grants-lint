@@ -26,6 +26,7 @@ export function createRelation(stmt: CreateRelation, ctx: ReplayContext): void {
     name,
     relationKind: stmt.relationKind,
     creator: ctx.creator,
+    acl: ctx.catalog.defaults.effective(ctx.creator, name.schema, 'table'),
     ownedBy: null,
   });
   for (const { column } of stmt.serialColumns) {
@@ -41,6 +42,7 @@ export function createRelation(stmt: CreateRelation, ctx: ReplayContext): void {
       name: sequence,
       relationKind: null,
       creator: ctx.creator,
+      acl: ctx.catalog.defaults.effective(ctx.creator, name.schema, 'sequence'),
       ownedBy,
     });
   }
@@ -59,6 +61,7 @@ export function createSequence(stmt: CreateSequence, ctx: ReplayContext): void {
     name,
     relationKind: null,
     creator: ctx.creator,
+    acl: ctx.catalog.defaults.effective(ctx.creator, name.schema, 'sequence'),
     ownedBy: null,
   });
 }

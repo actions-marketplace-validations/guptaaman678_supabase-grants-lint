@@ -14,7 +14,7 @@ import type {
   RoleRef,
   SourceLocation,
 } from '../parse/ir.js';
-import type { AclKind, GrantedPrivilege, Grantee } from '../model/acl.js';
+import type { Acl, AclKind, GrantedPrivilege, Grantee } from '../model/acl.js';
 import { PUBLIC } from '../model/acl.js';
 import type { Catalog, RelationName } from '../model/relations.js';
 
@@ -38,6 +38,8 @@ export interface CreatedEvent {
   readonly relationKind: RelationKind | null;
   /** The role whose default privileges it received. */
   readonly creator: string;
+  /** The privileges it received from those defaults. */
+  readonly acl: Acl;
   /** For sequences created by a serial column. */
   readonly ownedBy: { readonly relation: RelationName; readonly column: string } | null;
 }

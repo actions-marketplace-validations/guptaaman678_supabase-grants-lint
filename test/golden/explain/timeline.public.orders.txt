@@ -1,0 +1,16 @@
+public.orders: grant timeline
+
+supabase/migrations/20261003000000_orders.sql
+  1:1   create  table public.orders by postgres; no default privileges
+  6:1   grant   all on all tables in schema public to service_role
+  7:1   grant   select, insert on public.orders to authenticated
+  10:1  policy  create "members insert orders" for insert to authenticated
+
+Final privileges on public.orders (table)
+  anon           none
+  authenticated  select, insert
+  service_role   all
+  PUBLIC         none
+
+Policies on public.orders
+  "members insert orders" for insert to authenticated (restrictive)
