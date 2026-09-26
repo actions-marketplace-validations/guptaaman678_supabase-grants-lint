@@ -1,2 +1,4 @@
 * text=auto eol=lf
 *.gif binary
+# CRLF fixtures keep their Windows line endings in the repo and in every checkout.
+test/fixtures/*/*/crlf-*/migrations/*.sql -text
