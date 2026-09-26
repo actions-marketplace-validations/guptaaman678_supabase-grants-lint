@@ -18,6 +18,11 @@ concurrency:
 
 jobs:
   analyze:
+    # Uploading SARIF needs code scanning, which needs GitHub Advanced
+    # Security; that is not enabled on this private repo (Resource not
+    # accessible by integration). Public repos get code scanning for free,
+    # so this starts working once the repo goes public (T9.4).
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
