@@ -11,9 +11,6 @@ export default defineConfig({
   },
   test: {
     include: ['test/**/*.test.ts'],
-    benchmark: {
-      include: ['test/**/*.bench.ts'],
-    },
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],

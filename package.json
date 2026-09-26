@@ -59,7 +59,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "mutation": "stryker run",
-    "bench": "vitest bench --run --passWithNoTests",
+    "bench": "tsup && node scripts/bench.js",
     "changeset": "changeset"
   },
   "devDependencies": {

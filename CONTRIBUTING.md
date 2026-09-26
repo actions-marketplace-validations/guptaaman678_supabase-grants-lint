@@ -25,7 +25,7 @@ Node `>=22` is required (`.nvmrc` pins the version used in development).
 | `npm run typecheck`               | `tsc --noEmit` in strict mode                                                 |
 | `npm run format` / `format:check` | Prettier                                                                      |
 | `npm run mutation`                | Stryker mutation testing on `src/model`, `src/replay`, `src/rules`, `src/fix` |
-| `npm run bench`                   | performance benchmark                                                         |
+| `npm run bench`                   | cold-start `check` timings on generated projects of 100 and 500 migrations    |
 
 ## Fixture layout
 
