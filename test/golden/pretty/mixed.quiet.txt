@@ -1,0 +1,14 @@
+supabase/migrations/20261002000000_todos.sql
+  1:1  error  GL001  public.todos is created without a grant to service_role: server-side requests as service_role (edge functions, admin tools) fail with 42501 permission denied, because service_role bypasses RLS but not grants. Grant it the privileges it needs in the same migration.
+              fix   grant select, insert, update, delete on public.todos to service_role;
+              docs  https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL001.md
+  1:1  error  GL004  public.todos has serial column id, and authenticated can insert into it but holds no usage on its sequence public.todos_id_seq: inserts that rely on the column default fail with 42501 permission denied for sequence todos_id_seq. Grant authenticated usage on the sequence in the same migration.
+              fix   grant usage on sequence public.todos_id_seq to authenticated;
+              docs  https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL004.md
+
+supabase/migrations/20261003000000_orders.sql
+  1:1  error  GL002  public.orders has RLS policies for anon, but anon holds no select, insert, update or delete privilege on it: every Data API request as anon fails with 42501 permission denied before any policy runs. Grant anon the commands its policies cover in the same migration.
+              fix   grant select on public.orders to anon;
+              docs  https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL002.md
+
+3 errors, 2 warnings  (4 files, 2 relations, 0.0s)

@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "tool": {
+    "name": "supabase-grants-lint",
+    "version": "<version>"
+  },
+  "summary": {
+    "files": 4,
+    "relations": 2,
+    "errors": 3,
+    "warnings": 2,
+    "notices": 3,
+    "durationMs": 0,
+    "since": {
+      "value": "20261001000000",
+      "source": "auto",
+      "detected": {
+        "file": "supabase/migrations/20261001000000_opt_in.sql",
+        "at": {
+          "file": "supabase/migrations/20261001000000_opt_in.sql",
+          "line": 2,
+          "column": 1
+        }
+      }
+    }
+  },
+  "findings": [
+    {
+      "ruleId": "GL001",
+      "severity": "error",
+      "message": "public.todos is created without a grant to service_role: server-side requests as service_role (edge functions, admin tools) fail with 42501 permission denied, because service_role bypasses RLS but not grants. Grant it the privileges it needs in the same migration.",
+      "file": "supabase/migrations/20261002000000_todos.sql",
+      "line": 1,
+      "column": 1,
+      "relation": "public.todos",
+      "role": "service_role",
+      "fix": "grant select, insert, update, delete on public.todos to service_role;",
+      "docsUrl": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL001.md"
+    },
+    {
+      "ruleId": "GL004",
+      "severity": "error",
+      "message": "public.todos has serial column id, and authenticated can insert into it but holds no usage on its sequence public.todos_id_seq: inserts that rely on the column default fail with 42501 permission denied for sequence todos_id_seq. Grant authenticated usage on the sequence in the same migration.",
+      "file": "supabase/migrations/20261002000000_todos.sql",
+      "line": 1,
+      "column": 1,
+      "relation": "public.todos",
+      "role": "authenticated",
+      "privilege": "usage",
+      "fix": "grant usage on sequence public.todos_id_seq to authenticated;",
+      "docsUrl": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL004.md"
+    },
+    {
+      "ruleId": "GL002",
+      "severity": "error",
+      "message": "public.orders has RLS policies for anon, but anon holds no select, insert, update or delete privilege on it: every Data API request as anon fails with 42501 permission denied before any policy runs. Grant anon the commands its policies cover in the same migration.",
+      "file": "supabase/migrations/20261003000000_orders.sql",
+      "line": 1,
+      "column": 1,
+      "relation": "public.orders",
+      "role": "anon",
+      "fix": "grant select on public.orders to anon;",
+      "docsUrl": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL002.md"
+    },
+    {
+      "ruleId": "GL008",
+      "severity": "warn",
+      "message": "public.orders still grants truncate, references, trigger to authenticated, left over from the default privileges: the Data API never needs them, and TRUNCATE and REFERENCES are not subject to row level security. Revoke them in the same migration.",
+      "file": "supabase/migrations/20261003000000_orders.sql",
+      "line": 1,
+      "column": 1,
+      "relation": "public.orders",
+      "fix": "revoke truncate, references, trigger on public.orders from authenticated;",
+      "docsUrl": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL008.md"
+    },
+    {
+      "ruleId": "GL005",
+      "severity": "warn",
+      "message": "This grant on all sequences in schema public to authenticated applies to every sequence that exists there at this point (1 sequence), including any deliberately narrowed earlier, and to none created later. Grant on the sequences by name instead.",
+      "file": "supabase/migrations/20261003000000_orders.sql",
+      "line": 12,
+      "column": 1,
+      "docsUrl": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL005.md"
+    },
+    {
+      "ruleId": "PARSE002",
+      "severity": "info",
+      "message": "DO block not modelled; it mentions grant. The replay does not run it, so any grants, tables or policies it creates are not checked. Move those statements out of the block, or suppress this with a reason.",
+      "file": "supabase/migrations/20261004000000_admin.sql",
+      "line": 1,
+      "column": 1,
+      "docsUrl": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/PARSE002.md"
+    },
+    {
+      "ruleId": "PARSE001",
+      "severity": "info",
+      "message": "The replay skipped this statement because it could not be parsed (syntax error at or near \"tabel\" (line 6, column 8)), so any grant, table or policy in it is not checked. If Postgres accepts it, please report it as a bug.",
+      "file": "supabase/migrations/20261004000000_admin.sql",
+      "line": 6,
+      "column": 1,
+      "docsUrl": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/PARSE001.md"
+    }
+  ],
+  "notices": [
+    {
+      "code": "unused-suppression",
+      "message": "Unused suppression: no GL001 finding on line 11. Remove it.",
+      "file": "supabase/migrations/20261003000000_orders.sql",
+      "line": 10,
+      "column": 1
+    }
+  ]
+}

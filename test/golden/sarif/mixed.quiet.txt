@@ -1,0 +1,227 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "supabase-grants-lint",
+          "version": "<version>",
+          "semanticVersion": "<version>",
+          "informationUri": "https://github.com/guptaaman678/supabase-grants-lint",
+          "rules": [
+            {
+              "id": "GL000",
+              "name": "no-enforcement-baseline",
+              "shortDescription": {
+                "text": "No opt-in migration or since setting was found, so the rules that check new relations did not run."
+              },
+              "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL000.md",
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            },
+            {
+              "id": "GL001",
+              "name": "missing-service-role-grant",
+              "shortDescription": {
+                "text": "A new table or view gives service_role no privilege, so server-side requests fail with 42501."
+              },
+              "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL001.md",
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "GL002",
+              "name": "unreachable-new-relation",
+              "shortDescription": {
+                "text": "A new table has RLS policies for a client role that holds no privilege on it, so its requests fail with 42501."
+              },
+              "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL002.md",
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "GL003",
+              "name": "dead-policy",
+              "shortDescription": {
+                "text": "An RLS policy is for a client role that lacks the privilege its command needs, so the policy never applies."
+              },
+              "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL003.md",
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "GL004",
+              "name": "serial-sequence-usage",
+              "shortDescription": {
+                "text": "A client role can insert into a new table but holds no usage on its serial sequence, so inserts fail with 42501."
+              },
+              "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL004.md",
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "GL005",
+              "name": "blanket-grant",
+              "shortDescription": {
+                "text": "A grant on all tables or all sequences in a schema re-grants every existing object, including deliberately narrowed ones."
+              },
+              "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL005.md",
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            },
+            {
+              "id": "GL006",
+              "name": "default-privileges-regrant",
+              "shortDescription": {
+                "text": "A default privilege grant to an API role turns automatic grants back on for every relation created afterwards."
+              },
+              "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL006.md",
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "GL007",
+              "name": "replay-reenables-defaults",
+              "shortDescription": {
+                "text": "The migrations leave default privileges that give API roles grants on new relations when they are replayed."
+              },
+              "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL007.md",
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            },
+            {
+              "id": "GL008",
+              "name": "leftover-privileges",
+              "shortDescription": {
+                "text": "A new table or view still gives anon or authenticated truncate, references or trigger, which the Data API never needs."
+              },
+              "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL008.md",
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            },
+            {
+              "id": "PARSE001",
+              "name": "unparseable-statement",
+              "shortDescription": {
+                "text": "A statement could not be parsed and was skipped, or a migration file name has no version prefix."
+              },
+              "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/PARSE001.md",
+              "defaultConfiguration": {
+                "level": "note"
+              }
+            },
+            {
+              "id": "PARSE002",
+              "name": "dynamic-sql-skipped",
+              "shortDescription": {
+                "text": "A DO block that mentions grants, tables, policies or default privileges was skipped."
+              },
+              "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/PARSE002.md",
+              "defaultConfiguration": {
+                "level": "note"
+              }
+            }
+          ]
+        }
+      },
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "toolExecutionNotifications": []
+        }
+      ],
+      "results": [
+        {
+          "ruleId": "GL001",
+          "ruleIndex": 1,
+          "level": "error",
+          "message": {
+            "text": "public.todos is created without a grant to service_role: server-side requests as service_role (edge functions, admin tools) fail with 42501 permission denied, because service_role bypasses RLS but not grants. Grant it the privileges it needs in the same migration.\nFix: grant select, insert, update, delete on public.todos to service_role;"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "supabase/migrations/20261002000000_todos.sql"
+                },
+                "region": {
+                  "startLine": 1,
+                  "startColumn": 1
+                }
+              }
+            }
+          ],
+          "properties": {
+            "relation": "public.todos",
+            "role": "service_role",
+            "fix": "grant select, insert, update, delete on public.todos to service_role;"
+          }
+        },
+        {
+          "ruleId": "GL004",
+          "ruleIndex": 4,
+          "level": "error",
+          "message": {
+            "text": "public.todos has serial column id, and authenticated can insert into it but holds no usage on its sequence public.todos_id_seq: inserts that rely on the column default fail with 42501 permission denied for sequence todos_id_seq. Grant authenticated usage on the sequence in the same migration.\nFix: grant usage on sequence public.todos_id_seq to authenticated;"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "supabase/migrations/20261002000000_todos.sql"
+                },
+                "region": {
+                  "startLine": 1,
+                  "startColumn": 1
+                }
+              }
+            }
+          ],
+          "properties": {
+            "relation": "public.todos",
+            "role": "authenticated",
+            "privilege": "usage",
+            "fix": "grant usage on sequence public.todos_id_seq to authenticated;"
+          }
+        },
+        {
+          "ruleId": "GL002",
+          "ruleIndex": 2,
+          "level": "error",
+          "message": {
+            "text": "public.orders has RLS policies for anon, but anon holds no select, insert, update or delete privilege on it: every Data API request as anon fails with 42501 permission denied before any policy runs. Grant anon the commands its policies cover in the same migration.\nFix: grant select on public.orders to anon;"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "supabase/migrations/20261003000000_orders.sql"
+                },
+                "region": {
+                  "startLine": 1,
+                  "startColumn": 1
+                }
+              }
+            }
+          ],
+          "properties": {
+            "relation": "public.orders",
+            "role": "anon",
+            "fix": "grant select on public.orders to anon;"
+          }
+        }
+      ],
+      "columnKind": "utf16CodeUnits"
+    }
+  ]
+}

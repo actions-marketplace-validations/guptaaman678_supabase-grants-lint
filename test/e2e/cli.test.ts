@@ -143,6 +143,26 @@ describe('output', () => {
     expect(cli([...args, '--no-color']).stdout).not.toMatch(ansi);
   });
 
+  it('prints every --format and keeps the exit code', () => {
+    const dir = `${PROJECTS}/errors`;
+    const json = cli(['check', '--dir', dir, '--format', 'json']);
+    expect(json.code).toBe(1);
+    expect(JSON.parse(json.stdout)).toMatchObject({
+      schemaVersion: 1,
+      tool: { name: 'supabase-grants-lint', version: pkg.version },
+      summary: { errors: 1 },
+    });
+    const sarif = cli(['check', '--dir', dir, '--format=sarif']);
+    expect(sarif.code).toBe(1);
+    expect(JSON.parse(sarif.stdout)).toMatchObject({ version: '2.1.0' });
+    const github = cli(['check', '--dir', dir, '--format', 'github']);
+    expect(github.code).toBe(1);
+    expect(github.stdout).toMatch(
+      /^::error file=test\/e2e\/projects\/errors\/supabase\/migrations\/\d+_add_todos\.sql,line=1,col=1,title=GL001::/,
+    );
+    expect(cli(['check', '--dir', `${PROJECTS}/clean`, '--format', 'json']).code).toBe(0);
+  });
+
   it('loads the parser only for commands that lint', () => {
     const imports = new Set<string>();
     const visit = (file: string): void => {

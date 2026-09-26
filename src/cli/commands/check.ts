@@ -13,7 +13,11 @@ import {
   parseCommandArgs,
   stringOption,
 } from '../args.js';
-import { type Colors, colorEnabled, colors } from '../color.js';
+import { formatGithub } from '../../report/github.js';
+import { formatJson } from '../../report/json.js';
+import { formatPretty, type PrettyOptions } from '../../report/pretty.js';
+import { formatSarif } from '../../report/sarif.js';
+import { colorEnabled, colors } from '../color.js';
 import { ExitCode } from '../exit-codes.js';
 import type { Io } from '../io.js';
 import { COMMAND_USAGE } from '../usage.js';
@@ -70,9 +74,6 @@ export async function check(args: readonly string[], io: Io): Promise<ExitCode> 
     );
   }
   const format = choiceOption(values, 'format', FORMATS) ?? 'pretty';
-  if (format !== 'pretty') {
-    throw new UsageError(`--format ${format} is not available in this build yet.`);
-  }
   const maxWarnings = countOption(values, 'max-warnings');
   const strictParse = booleanOption(values, 'strict-parse');
   const quiet = booleanOption(values, 'quiet');
@@ -90,54 +91,26 @@ export async function check(args: readonly string[], io: Io): Promise<ExitCode> 
     ...(schemas === undefined ? {} : { schemas }),
     strictParse,
   });
-  const c = colors(
-    colorEnabled({ isTTY: io.isTTY, env: io.env, noColor: booleanOption(values, 'no-color') }),
+  const noColor = booleanOption(values, 'no-color');
+  io.stdout(
+    report(result, format, {
+      quiet,
+      colors: colors(colorEnabled({ isTTY: io.isTTY, env: io.env, noColor })),
+    }),
   );
-  io.stdout(formatText(result, c, quiet));
   return exitCodeFor(result, { maxWarnings, strictParse });
 }
 
-const LABELS = { error: 'error', warn: 'warn', info: 'info' } as const;
-
-/** Plain text, grouped by file. */
-export function formatText(result: LintResult, c: Colors, quiet: boolean): string {
-  const findings = quiet ? result.findings.filter((f) => f.severity === 'error') : result.findings;
-  const out: string[] = [];
-  let file: string | undefined;
-  for (const finding of findings) {
-    if (finding.file !== file) {
-      if (file !== undefined) out.push('');
-      file = finding.file;
-      out.push(c.bold(file));
-    }
-    const label = LABELS[finding.severity];
-    const severity =
-      finding.severity === 'error'
-        ? c.red(label)
-        : finding.severity === 'warn'
-          ? c.yellow(label)
-          : c.cyan(label);
-    out.push(
-      `  ${`${String(finding.line)}:${String(finding.column)}`.padEnd(6)} ${severity}  ${finding.ruleId}  ${finding.message}`,
-    );
-    if (finding.fix !== undefined) out.push(`         ${c.dim('fix')}   ${finding.fix}`);
-    out.push(`         ${c.dim('docs')}  ${finding.docsUrl}`);
+/** Renders a lint result in one of the `--format` formats. Only `pretty` uses colour. */
+export function report(result: LintResult, format: Format, options: PrettyOptions): string {
+  switch (format) {
+    case 'pretty':
+      return formatPretty(result, options);
+    case 'json':
+      return formatJson(result, options);
+    case 'sarif':
+      return formatSarif(result, options);
+    case 'github':
+      return formatGithub(result, options);
   }
-  if (!quiet) {
-    for (const notice of result.notices) {
-      const where =
-        notice.file === undefined
-          ? ''
-          : `${notice.file}${notice.line === undefined ? '' : `:${String(notice.line)}`}: `;
-      out.push(`${out.length === 0 ? '' : '\n'}${c.dim('notice')}  ${where}${notice.message}`);
-    }
-  }
-  const { errors, warnings, files, relations, durationMs } = result.summary;
-  const plural = (n: number, word: string): string => `${String(n)} ${word}${n === 1 ? '' : 's'}`;
-  const summary =
-    `${plural(errors, 'error')}, ${plural(warnings, 'warning')}  ` +
-    `(${plural(files, 'file')}, ${plural(relations, 'relation')}, ${(durationMs / 1000).toFixed(1)}s)`;
-  if (out.length > 0) out.push('');
-  out.push(errors > 0 ? c.red(summary) : warnings > 0 ? c.yellow(summary) : summary);
-  return `${out.join('\n')}\n`;
 }

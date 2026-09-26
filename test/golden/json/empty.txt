@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "tool": {
+    "name": "supabase-grants-lint",
+    "version": "<version>"
+  },
+  "summary": {
+    "files": 0,
+    "relations": 0,
+    "errors": 0,
+    "warnings": 0,
+    "notices": 0,
+    "durationMs": 0,
+    "since": {
+      "value": null,
+      "source": null,
+      "detected": null
+    }
+  },
+  "findings": [],
+  "notices": []
+}

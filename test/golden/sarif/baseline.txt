@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "supabase-grants-lint",
+          "version": "<version>",
+          "semanticVersion": "<version>",
+          "informationUri": "https://github.com/guptaaman678/supabase-grants-lint",
+          "rules": [
+            {
+              "id": "GL000",
+              "name": "no-enforcement-baseline",
+              "shortDescription": {
+                "text": "No opt-in migration or since setting was found, so the rules that check new relations did not run."
+              },
+              "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL000.md",
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            },
+            {
+              "id": "GL001",
+              "name": "missing-service-role-grant",
+              "shortDescription": {
+                "text": "A new table or view gives service_role no privilege, so server-side requests fail with 42501."
+              },
+              "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL001.md",
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "GL002",
+              "name": "unreachable-new-relation",
+              "shortDescription": {
+                "text": "A new table has RLS policies for a client role that holds no privilege on it, so its requests fail with 42501."
+              },
+              "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL002.md",
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "GL003",
+              "name": "dead-policy",
+              "shortDescription": {
+                "text": "An RLS policy is for a client role that lacks the privilege its command needs, so the policy never applies."
+              },
+              "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL003.md",
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "GL004",
+              "name": "serial-sequence-usage",
+              "shortDescription": {
+                "text": "A client role can insert into a new table but holds no usage on its serial sequence, so inserts fail with 42501."
+              },
+              "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL004.md",
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "GL005",
+              "name": "blanket-grant",
+              "shortDescription": {
+                "text": "A grant on all tables or all sequences in a schema re-grants every existing object, including deliberately narrowed ones."
+              },
+              "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL005.md",
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            },
+            {
+              "id": "GL006",
+              "name": "default-privileges-regrant",
+              "shortDescription": {
+                "text": "A default privilege grant to an API role turns automatic grants back on for every relation created afterwards."
+              },
+              "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL006.md",
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "GL007",
+              "name": "replay-reenables-defaults",
+              "shortDescription": {
+                "text": "The migrations leave default privileges that give API roles grants on new relations when they are replayed."
+              },
+              "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL007.md",
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            },
+            {
+              "id": "GL008",
+              "name": "leftover-privileges",
+              "shortDescription": {
+                "text": "A new table or view still gives anon or authenticated truncate, references or trigger, which the Data API never needs."
+              },
+              "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL008.md",
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            },
+            {
+              "id": "PARSE001",
+              "name": "unparseable-statement",
+              "shortDescription": {
+                "text": "A statement could not be parsed and was skipped, or a migration file name has no version prefix."
+              },
+              "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/PARSE001.md",
+              "defaultConfiguration": {
+                "level": "note"
+              }
+            },
+            {
+              "id": "PARSE002",
+              "name": "dynamic-sql-skipped",
+              "shortDescription": {
+                "text": "A DO block that mentions grants, tables, policies or default privileges was skipped."
+              },
+              "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/PARSE002.md",
+              "defaultConfiguration": {
+                "level": "note"
+              }
+            }
+          ]
+        }
+      },
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "toolExecutionNotifications": []
+        }
+      ],
+      "results": [
+        {
+          "ruleId": "GL000",
+          "ruleIndex": 0,
+          "level": "warning",
+          "message": {
+            "text": "No opt-in migration found, so the rules that check new relations (GL001 to GL006, GL008) checked no file. If your project was opted in from the dashboard, or you are past 2026-10-30, set since to the last migration applied before that (supabase-grants-lint init --since next). Otherwise add the opt-in migration that supabase-grants-lint doctor prints."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "supabase/migrations/20260101000000_remote%20schema.sql"
+                },
+                "region": {
+                  "startLine": 1,
+                  "startColumn": 1
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "GL007",
+          "ruleIndex": 7,
+          "level": "warning",
+          "message": {
+            "text": "Replaying these migrations (supabase db reset, a preview branch) leaves default privileges that give anon, authenticated, service_role all privileges on new tables and all privileges on new sequences postgres creates in schema public, so new relations get grants there that production, with automatic grants off, does not give them. Revoke them in a new migration.\nFix: alter default privileges for role postgres in schema public revoke all on tables from anon, authenticated, service_role;\nalter default privileges for role postgres in schema public revoke all on sequences from anon, authenticated, service_role;"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "supabase/migrations/20260101000000_remote%20schema.sql"
+                },
+                "region": {
+                  "startLine": 4,
+                  "startColumn": 1
+                }
+              }
+            }
+          ],
+          "properties": {
+            "fix": "alter default privileges for role postgres in schema public revoke all on tables from anon, authenticated, service_role;\nalter default privileges for role postgres in schema public revoke all on sequences from anon, authenticated, service_role;"
+          }
+        }
+      ],
+      "columnKind": "utf16CodeUnits"
+    }
+  ]
+}

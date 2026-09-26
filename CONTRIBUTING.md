@@ -42,6 +42,21 @@ test/fixtures/GL001/fail/no-service-role-grant/
 line, relation and role. A fixture with no matching finding belongs under
 `pass/`.
 
+## Reporter golden files
+
+Every `--format` is checked against golden files: each project in
+`test/golden/projects/` is linted and its output compared with
+`test/golden/<format>/<project>.txt`. After an intentional output change,
+rewrite them and review the diff before committing:
+
+```sh
+UPDATE_GOLDEN=1 npx vitest run test/golden/reporters.test.ts
+git diff test/golden
+```
+
+SARIF output is also validated against the SARIF 2.1.0 schema vendored in
+`test/golden/sarif-schema-2.1.0-rtm.5.json`.
+
 ## How to add a rule
 
 1. Read the rule's semantics in `docs/rules/` (or draft the page first if the

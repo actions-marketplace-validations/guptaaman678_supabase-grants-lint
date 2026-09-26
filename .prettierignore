@@ -4,3 +4,4 @@ reports/
 .stryker-tmp/
 package-lock.json
 CHANGELOG.md
+test/golden/sarif-schema-2.1.0-rtm.5.json

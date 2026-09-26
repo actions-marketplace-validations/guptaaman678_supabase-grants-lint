@@ -2,13 +2,17 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parseCommandArgs } from '../../src/cli/args.js';
-import { colorEnabled, colors } from '../../src/cli/color.js';
-import { exitCodeFor, formatText } from '../../src/cli/commands/check.js';
+import { type Colors, colorEnabled, colors } from '../../src/cli/color.js';
+import { exitCodeFor } from '../../src/cli/commands/check.js';
 import { ExitCode } from '../../src/cli/exit-codes.js';
 import type { Io } from '../../src/cli/io.js';
 import { redact, run } from '../../src/cli/main.js';
 import { lint } from '../../src/index.js';
+import { formatPretty } from '../../src/report/pretty.js';
 import type { Finding } from '../../src/rules/types.js';
+
+const formatText = (result: Parameters<typeof formatPretty>[0], c: Colors, quiet: boolean) =>
+  formatPretty(result, { colors: c, quiet });
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const PROJECTS = path.join(ROOT, 'test/e2e/projects');
@@ -164,10 +168,19 @@ describe('run', () => {
     expect(stderr()).toContain('doctor is not available in this build yet.');
   });
 
-  it('reports a format that is not built yet as a usage error', async () => {
-    const { io, stderr } = fakeIo();
-    expect(await run(['check', '--format', 'json'], io)).toBe(ExitCode.Usage);
-    expect(stderr()).toContain('--format json is not available in this build yet.');
+  it.each([
+    ['json', /^\{\n {2}"schemaVersion": 1,/],
+    ['sarif', /^\{\n {2}"\$schema": "https:\/\/json\.schemastore\.org\/sarif-2\.1\.0\.json",/],
+    [
+      'github',
+      /^::error file=test\/e2e\/projects\/errors\/supabase\/migrations\/\d+_add_todos\.sql,line=1,col=1,title=GL001::/,
+    ],
+  ])('prints --format %s without colour, even on a terminal', async (format, start) => {
+    const { io, stdout } = fakeIo({ isTTY: true });
+    const args = ['check', '--dir', path.join(PROJECTS, 'errors'), '--format', format];
+    expect(await run(args, io)).toBe(ExitCode.Findings);
+    expect(stdout()).toMatch(start);
+    expect(stdout()).not.toContain('\u001b[');
   });
 
   it('turns an unexpected exception into exit 3 with a bug report request, redacted', async () => {
