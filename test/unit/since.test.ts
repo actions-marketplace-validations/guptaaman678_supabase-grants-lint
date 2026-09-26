@@ -251,6 +251,12 @@ alter default privileges for role postgres in schema public revoke update, delet
       'alter default privileges in schema public grant all on tables to anon, authenticated, service_role;',
     ];
     for (const sql of cases) expect(run([BASELINE, sql]).since.value, sql).toBeNull();
+    // A sequence revoke does not complete a table revoke, even of privileges both kinds have.
+    const mixed = `
+alter default privileges in schema public revoke insert, delete on tables from anon, authenticated, service_role;
+alter default privileges in schema public revoke select, update on sequences from anon, authenticated, service_role;
+`;
+    expect(run([BASELINE, mixed]).since.value).toBeNull();
   });
 
   it('only counts revokes for the migration role', () => {
@@ -270,6 +276,8 @@ alter default privileges in schema public revoke all on tables from anon, authen
     expect(run([BASELINE, elsewhere], { schemas: ['public', 'private'] }).since.value).toBe(
       version(2),
     );
+    const listed = `alter default privileges in schema private, public revoke all on tables from anon, authenticated, service_role;`;
+    expect(run([BASELINE, listed]).since.value).toBe(version(2));
   });
 
   it('ignores an opt-in in a file without a version', () => {

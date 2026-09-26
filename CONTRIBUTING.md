@@ -97,7 +97,42 @@ response time and the policy for closing issues are documented in the
 project's maintenance policy once it is published; until then, expect a reply
 within a few days.
 
+## Mutation testing
+
+`npm run mutation` runs [Stryker](https://stryker-mutator.io/) with the vitest
+runner over `src/model`, `src/replay`, `src/rules` and `src/fix`, using
+`vitest.mutation.config.ts` (the in-process unit and golden suites; tests that
+run the built CLI in a child process cannot see a mutant). The run fails below
+a mutation score of 80 (`thresholds.break` in `stryker.config.json`); the
+project's target is 85 or more, with no unexplained survivor in `src/rules`.
+The HTML report is written to `reports/mutation/`, and a weekly workflow
+(`.github/workflows/mutation.yml`) runs it on `main`.
+
+`test/stryker-name-filter.ts` works around a mismatch between Stryker's vitest
+runner 10.0.0 and vitest 5: Stryker selects each mutant's tests by a name
+pattern joined with spaces, vitest 5 matches it against names joined with
+`" > "`, so no test inside a `describe` ran and every mutant survived. Remove
+the file once Stryker matches vitest 5 names itself.
+
 ## Mutation notes
 
-Surviving mutants judged equivalent (no behavioural difference, so no
-additional test is added) are recorded here as they are found. Empty for now.
+Surviving mutants judged equivalent (no behavioural difference, so no test can
+kill them) are listed here. Every other surviving mutant gets a test.
+
+| Where                                                              | Mutant                                                        | Why it is equivalent                                                                                                                                         |
+| ------------------------------------------------------------------ | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/model/acl.ts` `union`                                         | `hold.columns.size > 0` to `true` or `>= 0`                   | Granting a privilege with an empty column list adds no column and keeps the object-level flag, so the ACL is unchanged.                                      |
+| `src/model/relations.ts` `dropPolicy`                              | always keep the relation's policy map, even when empty        | Every reader (`policy`, `policiesOn`, `policies`, `moveRelation`) treats an empty map like a missing one.                                                    |
+| `src/replay/engine.ts` `case 'Unknown'`                            | case removed or relabelled                                    | The case only breaks out of the switch, which is what an unmatched statement does too.                                                                       |
+| `src/replay/handlers/move.ts` untracked move                       | `catalog.policiesOn(from).length > 0` to `true` or `>= 0`     | With no relation, sequence or policy under the old name, `moveRelation` returns an equal catalog (owned sequences always belong to a tracked relation).      |
+| `src/replay/since.ts` `compareVersions`                            | `x.length < y.length` to `<=`                                 | Only reached when the lengths differ.                                                                                                                        |
+| `src/replay/since.ts` `optInStatement`                             | skip the `typeof grantee !== 'string'` guard                  | `PUBLIC` is then recorded under its symbol, which the opt-in check (`anon`, `authenticated`, `service_role`) never reads.                                    |
+| `src/replay/since.ts` `replayWithWindow`                           | `first >= 0` to `true`                                        | With no enforced file `first` is `-1`, which is never a file index, so no platform revoke is applied either way.                                             |
+| `src/rules/GL003.ts` `anchor`                                      | `policy.altered !== null` to `true`                           | A file's policies were created or altered in it, so a policy created in another file always has `altered` set.                                               |
+| `src/rules/GL005.ts` `fixSql`                                      | `e.object === object` to `true`; `[]` to a placeholder string | Relations and sequences share one namespace, so a created name of the other kind, or a placeholder, never equals a target's qualified name.                  |
+| `src/rules/GL005.ts` `finding`                                     | always set `fix`, even to `undefined`                         | `runRules` copies `fix` into the report only when it has a value.                                                                                            |
+| `src/rules/GL007.ts` `fromFiles`                                   | also list revokes as candidate anchors                        | A revoke removes what it names from its own entry, so it is only still in effect if a later grant restored it, and `findLast` then returns that later grant. |
+| `src/rules/PARSE001.ts`, `PARSE002.ts`, `index.ts` `replayNotices` | `event.kind === 'skipped'` to `true`                          | Only `skipped` events have a `reason`; for the others it is `undefined`.                                                                                     |
+| `src/rules/index.ts` `isClientRole`                                | `typeof role === 'string'` to `true`                          | `clientRoles` holds strings, so it never includes `PUBLIC`.                                                                                                  |
+| `src/rules/index.ts` `runRules`                                    | `inlineUsed.get(suppression)?.add` to `.add`                  | Every suppression is a key of `inlineUsed`, which is built from the same list.                                                                               |
+| `src/rules/index.ts` `preferGL002`                                 | `relation === undefined` or `role === undefined` to `false`   | GL002 findings always have a relation and a role, so a GL003 finding without one never matches their key.                                                    |

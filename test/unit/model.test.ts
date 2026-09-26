@@ -98,12 +98,13 @@ describe('expandPrivileges', () => {
           { name: 'usage', columns: null },
           { name: 'delete', columns: ['title'] },
           { name: 'select', columns: null },
+          { name: 'truncate', columns: ['title', 'done'] },
         ],
         'table',
       ),
     ).toEqual({
       privileges: [{ name: 'select', columns: null }],
-      invalid: ['usage', 'delete (title)'],
+      invalid: ['usage', 'delete (title)', 'truncate (title, done)'],
     });
     expect(
       expandPrivileges(
@@ -198,6 +199,10 @@ describe('Acl', () => {
     const fully = partly.revoke(['anon'], [{ name: 'select', columns: ['done'] }]);
     expect(fully.holds('anon', 'select')).toBe(false);
     expect(fully.isEmpty).toBe(true);
+    const three = Acl.EMPTY.grant(['anon'], [{ name: 'select', columns: ['a', 'b', 'c'] }])
+      .revoke(['anon'], [{ name: 'select', columns: ['a'] }])
+      .revoke(['anon'], [{ name: 'select', columns: ['b'] }]);
+    expect(three.holds('anon', 'select')).toBe(true); // column c is left
   });
 
   it('drops a grantee once it holds nothing, and ignores revokes from grantees without grants', () => {
@@ -244,6 +249,7 @@ describe('Acl', () => {
         .holds('authenticated', 'insert'),
     ).toBe(true);
     expect(u.holdsOwn(PUBLIC, 'references')).toBe(true);
+    expect(u.privileges('anon')).toEqual(['select', 'update']);
     expect(a.privileges('authenticated')).toEqual([]);
     expect(Acl.EMPTY.union(Acl.EMPTY).isEmpty).toBe(true);
   });

@@ -166,6 +166,17 @@ describe('GL005 blanket-grant', () => {
     ]);
   });
 
+  it('builds the fix from created objects only, whatever else the file records', () => {
+    const findings = lint(
+      [
+        'create sequence public.invoice_no;',
+        'alter default privileges for role postgres in schema public grant usage on sequences to anon;',
+        'grant usage on all sequences in schema public to anon;',
+      ].join('\n'),
+    );
+    expect(lines(findings)).toEqual(['3 grant usage on sequence public.invoice_no to anon;']);
+  });
+
   it('checks only enforced files', () => {
     const full = { ...DEFAULT_CONFIG, platformDefaults: 'explicit' as const };
     const files = inputs([

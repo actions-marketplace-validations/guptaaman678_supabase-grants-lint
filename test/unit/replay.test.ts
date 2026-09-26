@@ -511,6 +511,26 @@ describe('replay: CREATE', () => {
     );
   });
 
+  it('records a created event with the sequence defaults for serial and CREATE SEQUENCE', () => {
+    const file = last(
+      run([
+        `alter default privileges for role postgres in schema public revoke update on sequences from anon;
+         create table public.todos (id serial); create sequence public.invoice_no;`,
+      ]),
+    );
+    const sequences = eventsOf(file, 'created').filter((e) => e.object === 'sequence');
+    expect(sequences.map((e) => [e.name.name, e.relationKind, e.ownedBy?.column ?? null])).toEqual([
+      ['todos_id_seq', null, 'id'],
+      ['invoice_no', null, null],
+    ]);
+    for (const event of sequences) {
+      expect(SEQUENCE_PRIVILEGES.filter((p) => event.acl.holds('anon', p))).toEqual([
+        'usage',
+        'select',
+      ]);
+    }
+  });
+
   it('keeps the first relation on a plain duplicate CREATE', () => {
     const file = last(
       run([
@@ -575,6 +595,31 @@ describe('replay: RENAME and SET SCHEMA', () => {
     );
     expect(file.after.policies().map((p) => p.relation.name)).toEqual(['renamed']);
     expect(eventsOf(file, 'moved')).toEqual([]);
+  });
+
+  it('ignores a move onto a name a sequence holds, and records what moved', () => {
+    const file = last(
+      run([
+        `create table public.todos (id int); create sequence public.invoice_no;
+         alter table public.todos rename to invoice_no;
+         alter sequence public.invoice_no rename to invoice_seq;`,
+      ]),
+    );
+    expect(tracked(file.after)).toEqual(['public.todos']);
+    expect(file.after.sequences().map((s) => s.name)).toEqual(['invoice_seq']);
+    expect(eventsOf(file, 'moved').map((e) => `${e.object}:${e.to.name}`)).toEqual([
+      'sequence:invoice_seq',
+    ]);
+  });
+
+  it('keeps the policies of a relation created outside the migrations on ALTER SEQUENCE', () => {
+    // Postgres rejects ALTER SEQUENCE on a table, so nothing moves.
+    const file = last(
+      run([
+        'create policy p on public.legacy_table for select using (true); alter sequence public.legacy_table rename to renamed;',
+      ]),
+    );
+    expect(file.after.policies().map((p) => p.relation.name)).toEqual(['legacy_table']);
   });
 });
 
@@ -741,6 +786,39 @@ describe('replay: GRANT and REVOKE', () => {
     expect(eventsOf(file, 'grant')[2]?.targets).toEqual([]);
   });
 
+  it('does not apply ON SEQUENCE to a table of that name', () => {
+    // Postgres rejects it ("is not a sequence"); the table keeps its grants.
+    const file = last(
+      run(['create table public.todos (id int); grant update on sequence public.todos to anon;']),
+    );
+    expect(eventsOf(file, 'grant')[0]).toMatchObject({
+      targets: [],
+      untracked: [split('public.todos')],
+    });
+    expect(held(file.after, 'public.todos', 'anon')).toEqual(TABLE_PRIVILEGES);
+    expect(eventsOf(file, 'skipped')).toEqual([]);
+  });
+
+  it('records the object kind of each target, and no untracked names for ALL ... IN SCHEMA', () => {
+    const file = last(
+      run([
+        `create sequence public.s; create table public.todos (id int);
+         grant select on table public.s, public.todos to anon;
+         grant select on all tables in schema public to anon;
+         grant insert, delete on table public.s to anon;`,
+      ]),
+    );
+    const [named, blanket] = eventsOf(file, 'grant');
+    expect(named?.targets.map((t) => `${t.object}:${t.name.name}`)).toEqual([
+      'sequence:s',
+      'table:todos',
+    ]);
+    expect(blanket?.untracked).toEqual([]);
+    expect(eventsOf(file, 'skipped').map((e) => e.message)).toEqual([
+      'Privilege not valid for the object, not recorded: insert on public.s; delete on public.s',
+    ]);
+  });
+
   it('resolves CURRENT_USER to the creator role and SESSION_USER to migrationRole', () => {
     const file = last(
       run(
@@ -844,6 +922,12 @@ describe('replay: ALTER DEFAULT PRIVILEGES', () => {
     ]);
     const sequences = last(run(['alter default privileges grant insert on sequences to anon;']));
     expect(eventsOf(sequences, 'skipped')[0]?.message).toContain('on sequences');
+    const several = last(
+      run(['alter default privileges grant usage, insert, delete on sequences to anon;']),
+    );
+    expect(eventsOf(several, 'skipped').map((e) => e.message)).toEqual([
+      'Privilege not valid for default privileges on sequences, not recorded: insert, delete',
+    ]);
   });
 
   it('shows the effect only on relations created after it', () => {
@@ -915,6 +999,21 @@ describe('replay: policies', () => {
       'rename:true',
       'rename:true',
       'drop:true',
+    ]);
+  });
+
+  it('RENAME and DROP events carry the command and roles of the policy', () => {
+    const file = last(
+      run([
+        `${base} create policy p on public.todos for update to authenticated using (true);
+         alter policy p on public.todos rename to q;
+         drop policy q on public.todos;`,
+      ]),
+    );
+    expect(eventsOf(file, 'policy')).toMatchObject([
+      { action: 'create' },
+      { action: 'rename', command: 'update', roles: ['authenticated'] },
+      { action: 'drop', command: 'update', roles: ['authenticated'] },
     ]);
   });
 

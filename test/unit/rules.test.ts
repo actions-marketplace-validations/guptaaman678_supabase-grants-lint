@@ -144,6 +144,7 @@ describe('rule context', () => {
     expect(last?.after.relation(T('todos'))).toBeDefined();
     expect(last?.before.relation(T('orders'))).toBeUndefined();
     expect(ctx.replay).toBe(replay);
+    expect(ctx.discovery).toEqual([]);
   });
 
   it('answers scope, client role and service-only questions from config', () => {
@@ -230,7 +231,16 @@ describe('running rules', () => {
         docsUrl: docsUrl('GL003'),
       },
     ]);
-    expect(Object.keys(findings[0] ?? {})).not.toContain('relation');
+    // Fields without a value are left out, not set to undefined (the programmatic API's shape).
+    expect(Object.keys(findings[0] ?? {})).toEqual([
+      'ruleId',
+      'severity',
+      'message',
+      'file',
+      'line',
+      'column',
+      'docsUrl',
+    ]);
   });
 
   it('uses the default severity, then a per-finding severity, then the config setting', () => {
@@ -462,6 +472,17 @@ describe('config ignore', () => {
     ]);
   });
 
+  it('does not match a relation entry against a finding without a relation', () => {
+    const bare = rule('GL005', (ctx) =>
+      ctx.enforced.map((file) => ({ at: { file: file.file, line: 1, column: 1 }, message: 'b' })),
+    );
+    const { findings, notices } = run(SQL, [bare], {
+      ignore: [{ rule: 'GL005', relation: 'todos', reason: 'r' }],
+    });
+    expect(findings.map((f) => f.file)).toEqual([pathOf(2), pathOf(3)]);
+    expect(notices.map((n) => n.code)).toEqual(['unused-ignore']);
+  });
+
   it('is a config error (exit 2) without a reason', () => {
     const { replay } = project(SQL);
     const config = { ...DEFAULT_CONFIG, ignore: [{ rule: 'GL001' as const, reason: '  ' }] };
@@ -474,6 +495,10 @@ describe('config ignore', () => {
     expect(error).toBeInstanceOf(ConfigError);
     expect((error as ConfigError).exitCode).toBe(2);
     expect((error as ConfigError).issues.map((i) => i.key)).toEqual(['ignore[0].reason']);
+    expect((error as ConfigError).message).toBe(
+      'Invalid config in options.config: "ignore[0].reason" is required: every suppression ' +
+        'must give a non-empty reason',
+    );
     // The config loader rejects it first, naming the file.
     expect(() =>
       validateConfig({ ignore: [{ rule: 'GL001', reason: '' }] }, 'grants-lint.config.json'),
@@ -546,6 +571,16 @@ describe('inline suppressions', () => {
     const { findings, notices } = run(sql, [perCreated('GL001')]);
     expect(findings.map((f) => f.file)).toEqual([pathOf(3)]);
     expect(notices.map((n) => [n.code, n.file])).toEqual([['unused-suppression', pathOf(2)]]);
+    // The same target line in another file is not suppressed.
+    const sameLine = run(
+      [
+        OPT_IN,
+        '-- grants-lint-disable-next-line GL001: other file\nselect 1;',
+        'select 1;\ncreate table todos (id int);',
+      ],
+      [perCreated('GL001')],
+    );
+    expect(sameLine.findings.map((f) => `${f.file}:${String(f.line)}`)).toEqual([`${pathOf(3)}:2`]);
   });
 
   it('sorts notices: config entries first, then comments by file and line', () => {
@@ -623,6 +658,9 @@ describe('matching helpers', () => {
     expect(matchesFile('supabase\\migrations\\20261001_todos.sql', file)).toBe(true);
     expect(matchesFile('1_todos.sql', file)).toBe(false);
     expect(matchesFile('20261001_todos', file)).toBe(false);
+    expect(matchesFile(`././${file}`, file)).toBe(true);
+    // Only a leading "./" is dropped: a directory name may end in a dot.
+    expect(matchesFile('db./20261001_todos.sql', 'db./20261001_todos.sql')).toBe(true);
   });
 
   it('labels PUBLIC as PUBLIC and roles by name', () => {

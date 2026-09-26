@@ -151,6 +151,13 @@ describe('GL006 default-privileges-regrant', () => {
       since: '20261001000000', // the opt-in above is for postgres, so not detected
     });
     expect(owner[0]?.message).toContain('every table app_owner creates');
+    const two = lint(
+      [
+        'set role app_owner;',
+        'alter default privileges for role postgres, app_owner grant select on tables to anon;',
+      ].join('\n'),
+    );
+    expect(two[0]?.message).toContain('every table postgres, app_owner creates in');
   });
 
   it('does not flag a grant of privileges invalid for the object kind', () => {

@@ -143,6 +143,12 @@ describe('GL007 replay-reenables-defaults', () => {
     expect(findings[0]?.fix).toBe(
       'alter default privileges for role postgres revoke all on tables from anon;',
     );
+    // With both an all-schemas and a per-schema entry, the message says any schema.
+    const [both] = lint([
+      'alter default privileges grant select on tables to anon;',
+      'alter default privileges in schema public grant insert on tables to anon;',
+    ]);
+    expect(both?.message).toContain('postgres creates in any schema, so new relations');
   });
 
   it('flags client roles, PUBLIC and the service role, and names only those', () => {

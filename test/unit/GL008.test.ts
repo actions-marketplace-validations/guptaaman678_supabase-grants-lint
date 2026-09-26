@@ -69,6 +69,17 @@ describe('GL008 leftover-privileges', () => {
     expect(findings[0]?.message).not.toContain(String.fromCodePoint(0x2014)); // G7
   });
 
+  it('lists every leftover privilege any of the roles holds', () => {
+    const findings = lint(
+      `${TODOS}\ngrant truncate on public.todos to anon;\ngrant references on public.todos to authenticated;`,
+      {},
+      FULL_OPT_IN,
+    );
+    expect(findings[0]?.message).toContain(
+      'still grants truncate, references to anon, authenticated, left over',
+    );
+  });
+
   it('reports one finding per relation, naming only the roles and privileges held', () => {
     const findings = lint(`${TODOS}\ngrant references on public.todos to anon;`, {}, FULL_OPT_IN);
     expect(findings).toHaveLength(1);
