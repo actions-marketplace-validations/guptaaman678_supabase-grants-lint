@@ -76,7 +76,12 @@ SARIF output is also validated against the SARIF 2.1.0 schema vendored in
    mutates the model.
 3. Add fixtures: at least one failing case, one passing case, and one case
    for every exemption or edge condition named in the rule's spec.
-4. Add `docs/rules/<ID>.md`.
+4. Add `docs/rules/<ID>.md` with the same sections as the other pages.
+   `test/golden/docs.test.ts` lints its "Failing example" SQL blocks (each
+   names its file on the first line), expects the rule to report them and
+   the "Fix" blocks to clear it, and compares the `text` block with the real
+   output. Fill that block with
+   `UPDATE_GOLDEN=1 npx vitest run test/golden/docs.test.ts`.
 5. Run `npm run mutation` and either add a test for every surviving mutant in
    the rule's file, or record why the mutant is equivalent below.
 6. Add a changeset (`npx changeset`) describing the user-visible change.
