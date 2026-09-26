@@ -1,0 +1,116 @@
+name: 'Supabase Grants Lint'
+description: >-
+  Replays Supabase SQL migrations and flags tables the Data API cannot reach once auto-grants are
+  gone (PostgREST 42501). Not affiliated with or endorsed by Supabase.
+author: 'Aman Gupta'
+branding:
+  icon: 'shield'
+  color: 'green'
+
+inputs:
+  args:
+    description: >-
+      Extra arguments passed to `supabase-grants-lint check`, for example `--dir supabase/migrations
+      --since v2`. Space-separated, word-split by the shell.
+    required: false
+    default: ''
+  format:
+    description: >-
+      Report format for the primary run: pretty, json, sarif or github. Use github (the default)
+      for pull request annotations; the action always runs a separate json pass for the errors and
+      warnings outputs, and, unless sarif is false, a separate sarif pass for the Security tab.
+    required: false
+    default: 'github'
+  sarif:
+    description: 'Also run with --format sarif and upload the result to the Security tab.'
+    required: false
+    default: 'true'
+  working-directory:
+    description: 'Directory to run supabase-grants-lint in.'
+    required: false
+    default: '.'
+  version:
+    description: >-
+      supabase-grants-lint version to install. Defaults to the version matching this action's tag,
+      so a floating `@v0` reference never runs unreleased code. Accepts `file:<path>` to a packed
+      tarball for local testing (see action-selftest.yml).
+    required: false
+    default: ''
+
+outputs:
+  errors:
+    description: 'Number of error-severity findings.'
+    value: ${{ steps.summary.outputs.errors }}
+  warnings:
+    description: 'Number of warning-severity findings.'
+    value: ${{ steps.summary.outputs.warnings }}
+  sarif-file:
+    description: 'Path to the generated SARIF file, when the sarif input is true.'
+    value: ${{ steps.sarif.outputs.sarif-file }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - name: Install supabase-grants-lint
+      shell: bash
+      run: |
+        set -euo pipefail
+        VERSION="${{ inputs.version }}"
+        if [ -z "$VERSION" ]; then
+          VERSION="${GITHUB_ACTION_REF:-latest}"
+          VERSION="${VERSION#v}"
+        fi
+        if [[ "$VERSION" == file:* ]]; then
+          npm install --global "${VERSION#file:}"
+        else
+          npm install --global "supabase-grants-lint@${VERSION}"
+        fi
+
+    - name: Run check
+      id: check
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      continue-on-error: true
+      run: |
+        set +e
+        supabase-grants-lint check --format "${{ inputs.format }}" ${{ inputs.args }}
+        echo "status=$?" >> "$GITHUB_OUTPUT"
+
+    - name: Collect summary
+      id: summary
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      if: always()
+      run: |
+        set -euo pipefail
+        JSON="$(supabase-grants-lint check --format json ${{ inputs.args }})"
+        {
+          echo "errors=$(node -e "console.log(JSON.parse(process.argv[1]).summary.errors)" "$JSON")"
+          echo "warnings=$(node -e "console.log(JSON.parse(process.argv[1]).summary.warnings)" "$JSON")"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Generate SARIF
+      id: sarif
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      if: always() && inputs.sarif == 'true'
+      run: |
+        set -euo pipefail
+        supabase-grants-lint check --format sarif ${{ inputs.args }} > grants-lint.sarif
+        echo "sarif-file=${{ inputs.working-directory }}/grants-lint.sarif" >> "$GITHUB_OUTPUT"
+
+    - name: Upload SARIF to the Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always() && inputs.sarif == 'true'
+      with:
+        sarif_file: ${{ steps.sarif.outputs.sarif-file }}
+
+    - name: Fail on findings
+      shell: bash
+      if: always()
+      run: exit ${{ steps.check.outputs.status }}

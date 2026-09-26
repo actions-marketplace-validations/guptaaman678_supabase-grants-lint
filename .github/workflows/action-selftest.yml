@@ -1,0 +1,94 @@
+name: Action self-test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      tarball: ${{ steps.pack.outputs.tarball }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+      - id: pack
+        run: |
+          FILE="$(npm pack --silent)"
+          echo "tarball=$PWD/$FILE" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tarball
+          path: ${{ steps.pack.outputs.tarball }}
+
+  failing-fixture:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarball
+      - name: Locate the packed tarball
+        id: locate
+        run: echo "path=$PWD/$(basename '${{ needs.build.outputs.tarball }}')" >> "$GITHUB_OUTPUT"
+      - name: Run the action on a fixture with a missing grant
+        id: lint
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 'file:${{ steps.locate.outputs.path }}'
+          working-directory: test/e2e/projects/errors
+      - name: Assert the action failed with one error
+        run: |
+          if [ "${{ steps.lint.outcome }}" != "failure" ]; then
+            echo "expected the action to fail on test/e2e/projects/errors" >&2
+            exit 1
+          fi
+          if [ "${{ steps.lint.outputs.errors }}" != "1" ]; then
+            echo "expected exactly 1 error, got '${{ steps.lint.outputs.errors }}'" >&2
+            exit 1
+          fi
+          if [ -z "${{ steps.lint.outputs.sarif-file }}" ]; then
+            echo "expected a sarif-file output even on failure" >&2
+            exit 1
+          fi
+
+  passing-fixture:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarball
+      - name: Locate the packed tarball
+        id: locate
+        run: echo "path=$PWD/$(basename '${{ needs.build.outputs.tarball }}')" >> "$GITHUB_OUTPUT"
+      - name: Run the action on a fixture with every required grant
+        id: lint
+        uses: ./
+        with:
+          version: 'file:${{ steps.locate.outputs.path }}'
+          working-directory: test/e2e/projects/clean
+      - name: Assert the action passed with zero errors and warnings
+        run: |
+          if [ "${{ steps.lint.outputs.errors }}" != "0" ]; then
+            echo "expected 0 errors, got '${{ steps.lint.outputs.errors }}'" >&2
+            exit 1
+          fi
+          if [ "${{ steps.lint.outputs.warnings }}" != "0" ]; then
+            echo "expected 0 warnings, got '${{ steps.lint.outputs.warnings }}'" >&2
+            exit 1
+          fi
