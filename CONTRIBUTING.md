@@ -42,6 +42,16 @@ test/fixtures/GL001/fail/no-service-role-grant/
 line, relation and role. A fixture with no matching finding belongs under
 `pass/`.
 
+## Whole-project tests
+
+`test/e2e/apps/<app>/` holds small but complete Supabase projects (a todo
+app, a chat app with serial ids, a multi-schema app, a project that starts
+from a `db pull` baseline). Each `expected.json` lists runs of `check` (flags,
+exit code, summary counts, resolved `since`, findings and notices), and
+`test/e2e/apps.test.ts` checks every run through the built binary and
+in-process. Line coverage must stay at 90% or more overall and at 100% for
+`src/model`, `src/replay`, `src/rules` and `src/fix` (`npm run test:coverage`).
+
 ## Reporter golden files
 
 Every `--format` is checked against golden files: each project in

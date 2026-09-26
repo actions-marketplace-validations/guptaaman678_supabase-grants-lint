@@ -1,0 +1,37 @@
+{
+  "description": "A chat app with serial, bigserial and identity keys: one serial sequence without USAGE, a blanket sequence grant and a DO block the replay cannot follow.",
+  "runs": [
+    {
+      "args": [],
+      "exitCode": 1,
+      "since": { "value": "20261001000000", "source": "auto" },
+      "summary": { "files": 5, "relations": 3, "errors": 1, "warnings": 1, "notices": 1 },
+      "findings": [
+        {
+          "rule": "GL004",
+          "severity": "error",
+          "file": "supabase/migrations/20261003000000_add_messages.sql",
+          "line": 2,
+          "column": 1,
+          "relation": "public.messages",
+          "role": "authenticated"
+        },
+        {
+          "rule": "GL005",
+          "severity": "warn",
+          "file": "supabase/migrations/20261005000000_backfill_sequence_grants.sql",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "rule": "PARSE002",
+          "severity": "info",
+          "file": "supabase/migrations/20261005000000_backfill_sequence_grants.sql",
+          "line": 5,
+          "column": 1
+        }
+      ],
+      "notices": []
+    }
+  ]
+}

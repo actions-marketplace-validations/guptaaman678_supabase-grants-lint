@@ -1,0 +1,62 @@
+{
+  "description": "An app exposing public and api (config schemas), with an unexposed private schema: a view server code cannot read, leftover privileges from grant all, and a default-privilege re-grant in api.",
+  "runs": [
+    {
+      "args": [],
+      "exitCode": 1,
+      "since": { "value": "20261001000000", "source": "auto" },
+      "summary": { "files": 6, "relations": 3, "errors": 3, "warnings": 1, "notices": 0 },
+      "findings": [
+        {
+          "rule": "GL001",
+          "severity": "error",
+          "file": "supabase/migrations/20261003000000_api_order_totals.sql",
+          "line": 2,
+          "column": 1,
+          "relation": "api.order_totals",
+          "role": "service_role"
+        },
+        {
+          "rule": "GL008",
+          "severity": "warn",
+          "file": "supabase/migrations/20261005000000_public_invoices.sql",
+          "line": 1,
+          "column": 1,
+          "relation": "public.invoices"
+        },
+        {
+          "rule": "GL006",
+          "severity": "error",
+          "file": "supabase/migrations/20261006000000_api_default_read.sql",
+          "line": 2,
+          "column": 1
+        },
+        {
+          "rule": "GL007",
+          "severity": "error",
+          "file": "supabase/migrations/20261006000000_api_default_read.sql",
+          "line": 2,
+          "column": 1
+        }
+      ],
+      "notices": []
+    },
+    {
+      "args": ["--schema", "public"],
+      "exitCode": 0,
+      "since": { "value": "20261001000000", "source": "auto" },
+      "summary": { "files": 6, "relations": 1, "errors": 0, "warnings": 1, "notices": 0 },
+      "findings": [
+        {
+          "rule": "GL008",
+          "severity": "warn",
+          "file": "supabase/migrations/20261005000000_public_invoices.sql",
+          "line": 1,
+          "column": 1,
+          "relation": "public.invoices"
+        }
+      ],
+      "notices": []
+    }
+  ]
+}

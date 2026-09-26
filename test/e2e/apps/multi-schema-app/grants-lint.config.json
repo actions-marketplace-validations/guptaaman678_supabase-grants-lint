@@ -1,0 +1,4 @@
+{
+  "$schema": "https://raw.githubusercontent.com/guptaaman678/supabase-grants-lint/main/schema/config.schema.json",
+  "schemas": ["public", "api"]
+}

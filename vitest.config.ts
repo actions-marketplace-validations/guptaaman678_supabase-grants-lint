@@ -18,6 +18,8 @@ export default defineConfig({
       provider: 'v8',
       include: ['src/**/*.ts'],
       thresholds: {
+        // The whole package (spec T5.1). Code only the child-process e2e tests run is not measured.
+        lines: 90,
         // Every rule reads the model, so every branch of it is tested (spec T2.4).
         'src/model/**': { branches: 100, functions: 100, lines: 100, statements: 100 },
         // Every statement family the replay handles has a test (spec T2.5).

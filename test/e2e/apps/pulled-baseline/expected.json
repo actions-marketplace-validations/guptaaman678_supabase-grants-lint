@@ -1,0 +1,67 @@
+{
+  "description": "A project that starts from a db pull baseline (grant all, and default privileges that re-grant everything on replay), then adds a table that relies on auto-grants. Without since there is no enforcement window; with the since of a dashboard opt-in, the platform revoke is assumed at the boundary.",
+  "runs": [
+    {
+      "args": [],
+      "exitCode": 0,
+      "since": { "value": null, "source": null },
+      "summary": { "files": 2, "relations": 3, "errors": 0, "warnings": 2, "notices": 0 },
+      "findings": [
+        {
+          "rule": "GL007",
+          "severity": "warn",
+          "file": "supabase/migrations/20260101000000_remote_schema.sql",
+          "line": 118,
+          "column": 1
+        },
+        {
+          "rule": "GL000",
+          "severity": "warn",
+          "file": "supabase/migrations/20261002000000_add_messages.sql",
+          "line": 1,
+          "column": 1
+        }
+      ],
+      "notices": []
+    },
+    {
+      "args": ["--since", "20260101000000"],
+      "exitCode": 1,
+      "since": { "value": "20260101000000", "source": "cli" },
+      "summary": { "files": 2, "relations": 3, "errors": 1, "warnings": 2, "notices": 1 },
+      "findings": [
+        {
+          "rule": "GL007",
+          "severity": "warn",
+          "file": "supabase/migrations/20260101000000_remote_schema.sql",
+          "line": 118,
+          "column": 1
+        },
+        {
+          "rule": "GL002",
+          "severity": "error",
+          "file": "supabase/migrations/20261002000000_add_messages.sql",
+          "line": 2,
+          "column": 1,
+          "relation": "public.messages",
+          "role": "authenticated"
+        },
+        {
+          "rule": "GL008",
+          "severity": "warn",
+          "file": "supabase/migrations/20261002000000_add_messages.sql",
+          "line": 2,
+          "column": 1,
+          "relation": "public.messages"
+        }
+      ],
+      "notices": [
+        {
+          "code": "platform-revoke",
+          "file": "supabase/migrations/20261002000000_add_messages.sql",
+          "line": 1
+        }
+      ]
+    }
+  ]
+}

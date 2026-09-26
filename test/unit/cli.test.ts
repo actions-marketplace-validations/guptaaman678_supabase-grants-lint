@@ -162,6 +162,28 @@ describe('run', () => {
     );
   });
 
+  it.each([['check'], ['init']])('prints %s --help and -h', async (command) => {
+    for (const flag of ['--help', '-h']) {
+      const { io, stdout } = fakeIo();
+      expect(await run([command, flag], io)).toBe(ExitCode.Ok);
+      expect(stdout()).toMatch(new RegExp(`^Usage: supabase-grants-lint ${command}`));
+    }
+  });
+
+  it.each([
+    [['chek'], 'Unknown command "chek". Did you mean "check"?'],
+    [['zzzzzz'], 'Unknown command "zzzzzz".\n'],
+    [['check', 'supabase', 'x'], 'check takes no arguments, got "supabase x".'],
+    [['check', '--format', 'jsn'], 'must be one of pretty, json, sarif, github, got "jsn". Did'],
+    [['check', '--max-warnings', '-1'], 'Option --max-warnings needs a value.'],
+    [['check', '--max-warnings=1.5'], '--max-warnings must be a whole number of at least 0'],
+  ])('reports %j as a usage error in-process', async (argv, message) => {
+    const { io, stdout, stderr } = fakeIo();
+    expect(await run(argv, io)).toBe(ExitCode.Usage);
+    expect(stdout()).toBe('');
+    expect(stderr()).toContain(message);
+  });
+
   it('reports commands that are not built yet as usage errors', async () => {
     const { io, stderr } = fakeIo();
     expect(await run(['init'], io)).toBe(ExitCode.Usage);

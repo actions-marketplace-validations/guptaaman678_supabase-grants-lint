@@ -1,0 +1,59 @@
+{
+  "description": "A todo app opted in by migration: one table done right, one with no grants at all, one with a dead insert policy, and a grant added one file too late.",
+  "runs": [
+    {
+      "args": [],
+      "exitCode": 1,
+      "since": { "value": "20261001000000", "source": "auto" },
+      "summary": { "files": 6, "relations": 4, "errors": 3, "warnings": 0, "notices": 0 },
+      "findings": [
+        {
+          "rule": "GL001",
+          "severity": "error",
+          "file": "supabase/migrations/20261003000000_add_todo_tags.sql",
+          "line": 2,
+          "column": 1,
+          "relation": "public.todo_tags",
+          "role": "service_role"
+        },
+        {
+          "rule": "GL002",
+          "severity": "error",
+          "file": "supabase/migrations/20261003000000_add_todo_tags.sql",
+          "line": 2,
+          "column": 1,
+          "relation": "public.todo_tags",
+          "role": "authenticated"
+        },
+        {
+          "rule": "GL003",
+          "severity": "error",
+          "file": "supabase/migrations/20261004000000_add_todo_notes.sql",
+          "line": 15,
+          "column": 1,
+          "relation": "public.todo_notes",
+          "role": "authenticated"
+        }
+      ],
+      "notices": []
+    },
+    {
+      "args": ["--since", "20261003000000"],
+      "exitCode": 1,
+      "since": { "value": "20261003000000", "source": "cli" },
+      "summary": { "files": 6, "relations": 4, "errors": 1, "warnings": 0, "notices": 0 },
+      "findings": [
+        {
+          "rule": "GL003",
+          "severity": "error",
+          "file": "supabase/migrations/20261004000000_add_todo_notes.sql",
+          "line": 15,
+          "column": 1,
+          "relation": "public.todo_notes",
+          "role": "authenticated"
+        }
+      ],
+      "notices": []
+    }
+  ]
+}
