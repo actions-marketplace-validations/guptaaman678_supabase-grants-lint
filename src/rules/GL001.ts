@@ -1,9 +1,11 @@
 /**
  * GL001 missing-service-role-grant (spec §6.2): a relation created in an enforced file that the
- * service role holds no privilege on at the end of that file. `service_role` bypasses RLS, not
- * grants, so server code (edge functions, admin tools) gets 42501 on it.
+ * service role holds no DML privilege (select, insert, update, delete) on at the end of that file.
+ * `service_role` bypasses RLS, not grants, so server code (edge functions, admin tools) gets 42501
+ * on it. Truncate, references, trigger and maintain do not count: the Data API needs DML, and the
+ * platform revoke leaves those four behind.
  */
-import { DML_PRIVILEGES, TABLE_PRIVILEGES } from '../model/acl.js';
+import { DML_PRIVILEGES } from '../model/acl.js';
 import { grantSql } from '../fix/sql.js';
 import { qualified } from '../replay/context.js';
 import type { CreatedRelation } from '../replay/engine.js';
@@ -34,12 +36,12 @@ export const GL001: Rule = {
   id: 'GL001',
   name: 'missing-service-role-grant',
   defaultSeverity: 'error',
-  docs: 'A new table or view gives service_role no privilege, so server-side requests fail with 42501.',
+  docs: 'A new table or view gives service_role no select, insert, update or delete, so server-side requests fail with 42501.',
   check(ctx) {
     const role = ctx.config.serviceRole;
     return ctx.enforced.flatMap((file) =>
       file.created
-        .filter((relation) => !TABLE_PRIVILEGES.some((p) => relation.acl.holds(role, p)))
+        .filter((relation) => !DML_PRIVILEGES.some((p) => relation.acl.holds(role, p)))
         .map((relation) => finding(relation, role)),
     );
   },

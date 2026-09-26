@@ -1,0 +1,13 @@
+{
+  "findings": [
+    {
+      "rule": "GL001",
+      "severity": "error",
+      "file": "migrations/20261002000000_add_orders.sql",
+      "line": 3,
+      "column": 1,
+      "relation": "public.orders",
+      "role": "service_role"
+    }
+  ]
+}

@@ -80,15 +80,29 @@ describe('GL001 missing-service-role-grant', () => {
     );
   });
 
-  it('is satisfied by any table privilege, per spec: "holds none of the table privileges"', () => {
-    for (const privilege of ['truncate', 'references', 'trigger', 'maintain', 'update']) {
-      expect(
-        lint(
-          `create table public.todos (id int);\ngrant ${privilege} on public.todos to service_role;`,
-        ),
-        privilege,
-      ).toEqual([]);
+  it('is satisfied by any DML privilege, not by truncate, references, trigger or maintain', () => {
+    const grant = (privilege: string) =>
+      lint(
+        `create table public.todos (id int);\ngrant ${privilege} on public.todos to service_role;`,
+      );
+    for (const privilege of ['select', 'insert', 'update', 'delete']) {
+      expect(grant(privilege), privilege).toEqual([]);
     }
+    for (const privilege of ['truncate', 'references', 'trigger', 'maintain']) {
+      expect(
+        grant(privilege).map((f) => f.relation),
+        privilege,
+      ).toEqual(['public.todos']);
+    }
+    expect(grant('truncate, references, trigger, maintain').map((f) => f.relation)).toEqual([
+      'public.todos',
+    ]);
+  });
+
+  it('counts DML held through PUBLIC', () => {
+    expect(
+      lint('create table public.todos (id int);\ngrant select on public.todos to public;'),
+    ).toEqual([]);
   });
 
   it('reads the service role from config', () => {

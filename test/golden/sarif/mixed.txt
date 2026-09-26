@@ -25,7 +25,7 @@
               "id": "GL001",
               "name": "missing-service-role-grant",
               "shortDescription": {
-                "text": "A new table or view gives service_role no privilege, so server-side requests fail with 42501."
+                "text": "A new table or view gives service_role no select, insert, update or delete, so server-side requests fail with 42501."
               },
               "helpUri": "https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL001.md",
               "defaultConfiguration": {
