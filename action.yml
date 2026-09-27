@@ -88,7 +88,9 @@ runs:
       if: always()
       run: |
         set -uo pipefail
+        set +e
         JSON="$(supabase-grants-lint check --format json ${{ inputs.args }})"
+        set -e
         {
           echo "errors=$(node -e "console.log(JSON.parse(process.argv[1]).summary.errors)" "$JSON")"
           echo "warnings=$(node -e "console.log(JSON.parse(process.argv[1]).summary.warnings)" "$JSON")"
@@ -101,7 +103,9 @@ runs:
       if: always() && inputs.sarif == 'true'
       run: |
         set -uo pipefail
+        set +e
         supabase-grants-lint check --format sarif ${{ inputs.args }} > grants-lint.sarif
+        set -e
         echo "sarif-file=${{ inputs.working-directory }}/grants-lint.sarif" >> "$GITHUB_OUTPUT"
 
     - name: Upload SARIF to the Security tab
