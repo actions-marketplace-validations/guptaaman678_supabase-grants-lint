@@ -30,11 +30,13 @@ try {
   const packOut = execFileSync(
     'npm',
     ['pack', '--json', '--ignore-scripts', '--pack-destination', tmp],
-    { cwd: root, encoding: 'utf8' },
+    { cwd: root, encoding: 'utf8', env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' } },
   );
-  const jsonStart = packOut.indexOf('[');
-  const jsonEnd = packOut.lastIndexOf(']');
-  const [packInfo] = JSON.parse(packOut.slice(jsonStart, jsonEnd + 1));
+  // `npm pack` re-runs the `prepare` lifecycle script even with --ignore-scripts, printing its
+  // own build output before the JSON array; match the array by shape rather than by position.
+  const jsonMatch = /\[\s*\{[\s\S]*\}\s*\]/.exec(packOut);
+  if (!jsonMatch) fail(`could not find JSON array in npm pack output:\n${packOut}`);
+  const [packInfo] = JSON.parse(jsonMatch[0]);
   const packedPath = path.join(tmp, packInfo.filename);
   if (!existsSync(packedPath)) fail(`tarball not found at ${packedPath}`);
 
