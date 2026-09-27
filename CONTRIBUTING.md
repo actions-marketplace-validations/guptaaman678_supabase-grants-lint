@@ -132,11 +132,18 @@ publish`): this publishes the package to npm with provenance (via OIDC
 5. Tick the Marketplace listing checkbox on the new release (GitHub UI,
    Releases page).
 
-The very first publish (0.1.0) is done by hand by a maintainer from a clean
-checkout of the release tag (`npm ci && npm run build && npm publish`),
-because npm trusted publishing can only be configured once the package
-already exists on the registry; it therefore has no provenance. 0.1.1
-onward is published by this workflow with provenance.
+The very first publish (0.1.0) is done by hand by a maintainer, because npm
+trusted publishing can only be configured once the package already exists on
+the registry. Merging the Version Packages PR still triggers the workflow's
+`publish` step, but it has no trusted publisher configured yet, so it fails
+there as expected (nothing is published by CI). The maintainer then publishes
+from a clean checkout of the merge commit (`npm ci && npm run build && npm
+publish`, 2FA), and only afterwards pushes the tags `v0.1.0` and `v0` at that
+commit and creates the GitHub Release by hand, since the workflow's own
+tagging and release steps never ran. It therefore has no provenance. Once
+0.1.0 exists on the registry, the maintainer configures npm trusted
+publishing for `release.yml`; 0.1.1 onward is published by this workflow with
+provenance, and its tagging and release steps run normally.
 
 ## Triage expectations
 
