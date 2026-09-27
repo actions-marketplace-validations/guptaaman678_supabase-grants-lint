@@ -10,7 +10,7 @@ import {
   TABLE_PRIVILEGES,
 } from '../../src/model/acl.js';
 import { DefaultPrivileges, LEGACY_DEFAULTS } from '../../src/model/defaults.js';
-import { Catalog, type Policy } from '../../src/model/relations.js';
+import { Catalog, isServiceRoleOnly, type Policy } from '../../src/model/relations.js';
 import type { SourceLocation } from '../../src/parse/ir.js';
 
 const FILE = 'supabase/migrations/20261002120000_add_todos.sql';
@@ -26,11 +26,27 @@ function policy(overrides: Partial<Policy> = {}): Policy {
     command: 'select',
     roles: ['authenticated'],
     permissive: true,
+    using: 'other',
+    withCheck: null,
     created: at(5),
     altered: null,
     ...overrides,
   };
 }
+
+describe('isServiceRoleOnly (ADR-012)', () => {
+  it.each([
+    ['service_role', null, true],
+    [null, 'service_role', true],
+    ['service_role', 'service_role', true],
+    [null, null, false],
+    ['other', null, false],
+    ['service_role', 'other', false],
+    ['other', 'service_role', false],
+  ] as const)('using %s, with check %s -> %s', (using, withCheck, expected) => {
+    expect(isServiceRoleOnly({ using, withCheck })).toBe(expected);
+  });
+});
 
 describe('privilege sets', () => {
   it('lists table, sequence, DML and column privileges', () => {

@@ -1,0 +1,13 @@
+{
+  "findings": [
+    {
+      "rule": "GL003",
+      "severity": "error",
+      "file": "migrations/20261003000000_alter_policy.sql",
+      "line": 2,
+      "column": 1,
+      "relation": "public.messages",
+      "role": "PUBLIC"
+    }
+  ]
+}

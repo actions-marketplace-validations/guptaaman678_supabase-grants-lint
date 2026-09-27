@@ -17,6 +17,7 @@ import {
   type DynamicSqlKeyword,
   type ObjectKind,
   type PolicyCommand,
+  type PolicyPredicate,
   type Privilege,
   type QualifiedName,
   type RoleRef,
@@ -447,6 +448,99 @@ function constString(node: Node | undefined): string | null {
   return node.A_Const.sval?.sval ?? null;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Service-role-only policy expressions (ADR-012). The parser drops parentheses already.
+
+/** The operands of a binary `op` expression, or `null` when `node` is anything else. */
+function operands(node: Node, op: string): [Node | undefined, Node | undefined] | null {
+  if (!('A_Expr' in node)) return null;
+  const expr = node.A_Expr;
+  const name = (expr.name ?? []).flatMap(stringList);
+  if (expr.kind !== 'AEXPR_OP' || name.length !== 1 || name[0] !== op) return null;
+  return [expr.lexpr, expr.rexpr];
+}
+
+/** The arguments of a call to `name` (dotted), or `null` when `node` is anything else. */
+function callArgs(node: Node, name: string): Node[] | null {
+  if (!('FuncCall' in node)) return null;
+  const call = node.FuncCall;
+  if ((call.funcname ?? []).flatMap(stringList).join('.') !== name) return null;
+  return call.args ?? [];
+}
+
+/** The target of `(select <expr>)` with nothing else in the select, or `null`. */
+function scalarSelect(node: Node): Node | undefined | null {
+  if (!('SubLink' in node) || node.SubLink.subLinkType !== 'EXPR_SUBLINK') return null;
+  const select = node.SubLink.subselect;
+  if (select === undefined || !('SelectStmt' in select)) return null;
+  const stmt = select.SelectStmt;
+  const targets = stmt.targetList ?? [];
+  const bare = Object.keys(stmt).every((key) => ['targetList', 'limitOption', 'op'].includes(key));
+  const target = targets[0];
+  if (!bare || targets.length !== 1 || target === undefined || !('ResTarget' in target)) {
+    return null;
+  }
+  return target.ResTarget.val;
+}
+
+/** The operand of a cast to `type` (bare or `pg_catalog.`), or `null` when `node` is not one. */
+function castOperand(node: Node, type: string): Node | null {
+  if (!('TypeCast' in node)) return null;
+  const { arg, typeName } = node.TypeCast;
+  const names = (typeName?.names ?? []).flatMap(stringList);
+  const matches =
+    typeName?.arrayBounds === undefined &&
+    names[names.length - 1] === type &&
+    (names.length === 1 || (names.length === 2 && names[0] === 'pg_catalog'));
+  return matches ? (arg ?? null) : null;
+}
+
+/** Strips casts to `text` and `(select ...)` wrappers, which do not change a compared value. */
+function unwrap(node: Node | undefined): Node | undefined {
+  let current = node;
+  while (current !== undefined) {
+    const inner = castOperand(current, 'text') ?? scalarSelect(current);
+    if (inner === null) return current;
+    current = inner;
+  }
+  return current;
+}
+
+/** `current_setting('<name>' [, missing_ok])`. */
+function isSetting(node: Node, name: string): boolean {
+  const args = callArgs(node, 'current_setting');
+  return args !== null && args.length <= 2 && constString(unwrap(args[0])) === name;
+}
+
+const ROLE_FUNCTIONS = ['SVFOP_CURRENT_USER', 'SVFOP_CURRENT_ROLE', 'SVFOP_SESSION_USER'];
+
+/** An expression whose value is the role of the request, per ADR-012. */
+function isRequestRole(node: Node | undefined): boolean {
+  if (node === undefined) return false;
+  if ('SQLValueFunction' in node) return ROLE_FUNCTIONS.includes(node.SQLValueFunction.op ?? '');
+  if (callArgs(node, 'auth.role')?.length === 0) return true;
+  if (isSetting(node, 'request.jwt.claim.role')) return true;
+  const claim = operands(node, '->>');
+  if (claim === null || constString(unwrap(claim[1])) !== 'role') return false;
+  const claims = unwrap(claim[0]);
+  if (claims === undefined) return false;
+  if (callArgs(claims, 'auth.jwt')?.length === 0) return true;
+  const setting = castOperand(claims, 'jsonb');
+  return setting !== null && isSetting(setting, 'request.jwt.claims');
+}
+
+/** Classifies a policy's `USING` or `WITH CHECK` expression; `null` when it is absent. */
+export function policyPredicate(node: Node | undefined): PolicyPredicate | null {
+  if (node === undefined) return null;
+  const sides = operands(node, '=');
+  if (sides === null) return 'other';
+  const [left, right] = [unwrap(sides[0]), unwrap(sides[1])];
+  const serviceRole =
+    (constString(left) === 'service_role' && isRequestRole(right)) ||
+    (constString(right) === 'service_role' && isRequestRole(left));
+  return serviceRole ? 'service_role' : 'other';
+}
+
 /** Maps one parsed statement to the IR. Anything not in spec §6.1 becomes `Unknown`. */
 export function toStatement(node: Node, at: At): Statement {
   if ('CreateStmt' in node) {
@@ -598,6 +692,8 @@ export function toStatement(node: Node, at: At): Statement {
       roles: roles.length === 0 ? [{ kind: 'public' }] : roles,
       // The AST omits `permissive` when it is false (`AS RESTRICTIVE`).
       permissive: stmt.permissive === true,
+      using: policyPredicate(stmt.qual),
+      withCheck: policyPredicate(stmt.with_check),
     };
   }
   if ('AlterPolicyStmt' in node) {
@@ -608,6 +704,8 @@ export function toStatement(node: Node, at: At): Statement {
       name: stmt.policy_name ?? '',
       relation: qualified(stmt.table),
       roles: stmt.roles === undefined ? null : roleRefs(stmt.roles),
+      using: policyPredicate(stmt.qual),
+      withCheck: policyPredicate(stmt.with_check),
     };
   }
   if ('VariableSetStmt' in node) {

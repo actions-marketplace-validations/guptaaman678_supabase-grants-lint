@@ -59,6 +59,13 @@ export interface Privilege {
 
 export type PolicyCommand = 'all' | 'select' | 'insert' | 'update' | 'delete';
 
+/**
+ * How a policy's `USING` or `WITH CHECK` expression reads (ADR-012): `service_role` when it is
+ * only a test that the request role is `service_role` (for example `auth.role() = 'service_role'`),
+ * `other` for anything else.
+ */
+export type PolicyPredicate = 'service_role' | 'other';
+
 interface Base extends SourceLocation {
   /** Source text of the statement, without the trailing `;`. */
   readonly text: string;
@@ -159,6 +166,10 @@ export interface CreatePolicy extends Base {
   /** Defaults to `[PUBLIC]` when `TO` is omitted. */
   readonly roles: readonly RoleRef[];
   readonly permissive: boolean;
+  /** The `USING` expression, or `null` when absent. */
+  readonly using: PolicyPredicate | null;
+  /** The `WITH CHECK` expression, or `null` when absent. */
+  readonly withCheck: PolicyPredicate | null;
 }
 
 /** `ALTER POLICY ... [TO ...] [USING ...] [WITH CHECK ...]`. */
@@ -168,6 +179,10 @@ export interface AlterPolicy extends Base {
   readonly relation: QualifiedName;
   /** The new `TO` list, or `null` when the statement leaves the roles unchanged. */
   readonly roles: readonly RoleRef[] | null;
+  /** The new `USING` expression, or `null` when the statement leaves it unchanged. */
+  readonly using: PolicyPredicate | null;
+  /** The new `WITH CHECK` expression, or `null` when the statement leaves it unchanged. */
+  readonly withCheck: PolicyPredicate | null;
 }
 
 export interface RenamePolicy extends Base {

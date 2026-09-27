@@ -7,7 +7,7 @@
  * The catalog records state only. Which schemas are in scope, how names resolve and what a
  * statement means are the replay engine's job; what counts as a problem is the rules'.
  */
-import type { PolicyCommand, RelationKind, SourceLocation } from '../parse/ir.js';
+import type { PolicyCommand, PolicyPredicate, RelationKind, SourceLocation } from '../parse/ir.js';
 import { Acl, type Grantee } from './acl.js';
 import { DefaultPrivileges } from './defaults.js';
 
@@ -42,9 +42,22 @@ export interface Policy {
   readonly command: PolicyCommand;
   readonly roles: readonly Grantee[];
   readonly permissive: boolean;
+  /** The current `USING` expression, or `null` when the policy has none. */
+  readonly using: PolicyPredicate | null;
+  /** The current `WITH CHECK` expression, or `null` when the policy has none. */
+  readonly withCheck: PolicyPredicate | null;
   readonly created: SourceLocation;
   /** The latest `ALTER POLICY`, or `null` if never altered. */
   readonly altered: SourceLocation | null;
+}
+
+/**
+ * ADR-012: a policy whose every `USING` / `WITH CHECK` expression only tests for `service_role`
+ * never admits a client role, and `service_role` bypasses RLS, so it is not client access control.
+ */
+export function isServiceRoleOnly(policy: Pick<Policy, 'using' | 'withCheck'>): boolean {
+  const predicates = [policy.using, policy.withCheck].filter((p) => p !== null);
+  return predicates.length > 0 && predicates.every((p) => p === 'service_role');
 }
 
 function key({ schema, name }: RelationName): string {

@@ -16,6 +16,8 @@ export function createPolicy(stmt: CreatePolicy, ctx: ReplayContext): void {
     command: stmt.command,
     roles,
     permissive: stmt.permissive,
+    using: stmt.using,
+    withCheck: stmt.withCheck,
     created: at,
     altered: null,
   });
@@ -41,6 +43,8 @@ export function alterPolicy(stmt: AlterPolicy, ctx: ReplayContext): void {
     ctx.catalog = ctx.catalog.putPolicy({
       ...existing,
       roles: roles ?? existing.roles,
+      using: stmt.using ?? existing.using,
+      withCheck: stmt.withCheck ?? existing.withCheck,
       altered: at,
     });
   }

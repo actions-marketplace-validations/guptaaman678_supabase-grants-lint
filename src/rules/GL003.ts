@@ -4,10 +4,11 @@
  * checks table privileges before RLS, so the role's requests fail with 42501 and the policy is
  * access control that never applies. A policy on a relation the replay has not seen created is
  * reported at warn level: the table was probably created outside the migrations, or by a later
- * file (then the message names it, since a replay fails at the policy).
+ * file (then the message names it, since a replay fails at the policy). A policy that only admits
+ * `service_role` (ADR-012) is not client access control and is not checked for grants.
  */
 import { DML_PRIVILEGES, type Grantee, PUBLIC } from '../model/acl.js';
-import type { Policy } from '../model/relations.js';
+import { isServiceRoleOnly, type Policy } from '../model/relations.js';
 import { grantSql, quoteIdent } from '../fix/sql.js';
 import type { SourceLocation } from '../parse/ir.js';
 import { qualified } from '../replay/context.js';
@@ -88,7 +89,7 @@ export const GL003: Rule = {
       file.policies.flatMap((policy): RuleFinding[] => {
         const relation = file.after.relation(policy.relation);
         if (relation === undefined) return [unknownRelation(policy, file, ctx)];
-        if (ctx.isServiceOnly(relation)) return [];
+        if (ctx.isServiceOnly(relation) || isServiceRoleOnly(policy)) return [];
         return policy.roles
           .filter((role) => isCheckedPolicyRole(ctx, role))
           .filter(

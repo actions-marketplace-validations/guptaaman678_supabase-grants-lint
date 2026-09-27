@@ -469,6 +469,118 @@ describe('ALTER DEFAULT PRIVILEGES', () => {
   );
 });
 
+// Plain test titles: Stryker selects tests by a name pattern, and SQL punctuation in a title
+// (quotes, parentheses, `*`, and in practice commas and hyphens) stops it from matching, which
+// reports killed mutants as surviving.
+describe('service role only policy expressions for ADR 012', () => {
+  const using = (expr: string): unknown =>
+    one(`create policy p on todos using (${expr});`, 'CreatePolicy').using;
+
+  const SERVICE_ROLE_ONLY = [
+    "auth.role() = 'service_role'",
+    "'service_role' = auth.role()",
+    "(auth.role()) = ('service_role')",
+    "auth.role() = 'service_role'::text",
+    "auth.role()::text = 'service_role'::pg_catalog.text",
+    "(select auth.role()) = 'service_role'",
+    "(select auth.role()) = 'service_role'::text",
+    "auth.jwt() ->> 'role' = 'service_role'",
+    "(auth.jwt() ->> 'role'::text) = 'service_role'",
+    "(select auth.jwt() ->> 'role') = 'service_role'",
+    "((select auth.jwt()) ->> 'role') = 'service_role'",
+    "current_setting('request.jwt.claim.role') = 'service_role'",
+    "current_setting('request.jwt.claim.role', true) = 'service_role'",
+    "current_setting('request.jwt.claim.role'::text, true)::text = 'service_role'",
+    "current_setting('request.jwt.claims', true)::jsonb ->> 'role' = 'service_role'",
+    "current_setting('request.jwt.claims')::pg_catalog.jsonb ->> 'role' = 'service_role'",
+    "current_user = 'service_role'",
+    "current_role = 'service_role'",
+    "session_user = 'service_role'",
+    "'service_role' = current_user",
+  ];
+
+  const OTHER = [
+    "auth.role() = 'authenticated'",
+    "'authenticated' = auth.role()",
+    "auth.role() <> 'service_role'",
+    "auth.role() is distinct from 'service_role'",
+    "auth.role() is not distinct from 'service_role'",
+    "operator(=) 'service_role'",
+    "(->> 'role') = 'service_role'",
+    "(select) = 'service_role'",
+    "auth.role() operator(pg_catalog.=) 'service_role'",
+    "auth.role() = 'service_role' or auth.uid() = user_id",
+    "auth.role() = 'service_role' and auth.uid() = user_id",
+    'auth.uid() = user_id',
+    'is_admin()',
+    'true',
+    "auth.role('x') = 'service_role'",
+    "auth.jwt('x') ->> 'role' = 'service_role'",
+    "role() = 'service_role'",
+    "other.role() = 'service_role'",
+    "auth.role() = 'service_role'::varchar",
+    "auth.role()::text[] = 'service_role'",
+    "auth.role()::public.text = 'service_role'",
+    "auth.role()::a.b.text = 'service_role'",
+    "auth.role()::pg_catalog.a.text = 'service_role'",
+    "(select auth.role() from todos) = 'service_role'",
+    "(select auth.role() where true) = 'service_role'",
+    "(select auth.role(), 1) = 'service_role'",
+    "(select *) = 'service_role'",
+    "exists (select auth.role()) = 'service_role'",
+    "auth.jwt() ->> 'sub' = 'service_role'",
+    "auth.jwt() -> 'role' = 'service_role'",
+    "auth.jwt() ->> 'role' = 'anon'",
+    "current_setting('request.jwt.claim.sub') = 'service_role'",
+    "current_setting('request.jwt.claim.role', true, 1) = 'service_role'",
+    "current_setting('request.jwt.claims', true)::json ->> 'role' = 'service_role'",
+    "current_setting('request.jwt.claims', true) ->> 'role' = 'service_role'",
+    "current_setting('request.jwt.claim.role', true)::jsonb ->> 'role' = 'service_role'",
+    "current_setting('request.jwt.claims', true)::jsonb[] ->> 'role' = 'service_role'",
+    "user_id = 'service_role'",
+    "current_date = 'service_role'",
+    'current_user = user_id',
+    "'service_role' = 'service_role'",
+    "1 = 'service_role'",
+  ];
+
+  it('classifies each recognised request role test as service_role', () => {
+    for (const expr of SERVICE_ROLE_ONLY) expect(using(expr), expr).toBe('service_role');
+  });
+
+  it('classifies every other expression as other', () => {
+    for (const expr of OTHER) expect(using(expr), expr).toBe('other');
+  });
+
+  it('classifies USING and WITH CHECK separately and reports absent ones as null', () => {
+    expect(
+      one(
+        "create policy p on todos for insert with check (auth.role() = 'service_role');",
+        'CreatePolicy',
+      ),
+    ).toMatchObject({ using: null, withCheck: 'service_role' });
+    expect(
+      one(
+        "create policy p on todos using (auth.role() = 'service_role') with check (true);",
+        'CreatePolicy',
+      ),
+    ).toMatchObject({ using: 'service_role', withCheck: 'other' });
+  });
+
+  it('reports what ALTER POLICY changes and null for what it leaves alone', () => {
+    expect(one('alter policy p on todos to anon;', 'AlterPolicy')).toMatchObject({
+      using: null,
+      withCheck: null,
+    });
+    expect(
+      one(
+        "alter policy p on todos using (auth.uid() = user_id) with check (auth.role() = 'service_role');",
+        'AlterPolicy',
+      ),
+    ).toMatchObject({ using: 'other', withCheck: 'service_role' });
+  });
+});
+
 describe('policies', () => {
   it('maps CREATE POLICY with every clause', () => {
     const s = one(
