@@ -87,7 +87,7 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       if: always()
       run: |
-        set -euo pipefail
+        set -uo pipefail
         JSON="$(supabase-grants-lint check --format json ${{ inputs.args }})"
         {
           echo "errors=$(node -e "console.log(JSON.parse(process.argv[1]).summary.errors)" "$JSON")"
@@ -100,7 +100,7 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       if: always() && inputs.sarif == 'true'
       run: |
-        set -euo pipefail
+        set -uo pipefail
         supabase-grants-lint check --format sarif ${{ inputs.args }} > grants-lint.sarif
         echo "sarif-file=${{ inputs.working-directory }}/grants-lint.sarif" >> "$GITHUB_OUTPUT"
 
