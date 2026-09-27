@@ -159,7 +159,56 @@ describe('diagnose and formatDoctor', () => {
     expect(text).toContain('2 relations in schemas public, api after the last one.');
 
     const later = flat(formatDoctor(await diagnose({ cwd: OPTED_IN, since: '20991231000000' })));
-    expect(later).toContain('check enforces the 0 migration files after it.');
+    expect(later).toContain(
+      'since is 20991231000000 (from --since): no migrations after it yet; check will enforce ' +
+        'every new one.',
+    );
+    expect(later).not.toContain('assumes the platform revoke');
+  });
+
+  it('says an opt-in migration with nothing after it enforces every new one', async () => {
+    const dir = project('opted-in-last', {
+      'supabase/migrations/20261001000000_a.sql': TODOS,
+      'supabase/migrations/20261002000000_opt_in.sql': optInSql(DEFAULT_CONFIG),
+    });
+    const text = flat(formatDoctor(await diagnose({ cwd: dir })));
+    expect(text).toContain(
+      'Opted in by supabase/migrations/20261002000000_opt_in.sql:1. No migrations after it yet; ' +
+        'check will enforce every new one.',
+    );
+  });
+
+  it('lists relations the migrations grant on or add policies to but never create', async () => {
+    const dir = project('not-created', {
+      'supabase/migrations/20261001000000_a.sql':
+        'grant select on public.messages, api.orders to authenticated;\n' +
+        'revoke insert on table public.audit_log from anon;\n' +
+        'grant usage on sequence public.messages_id_seq to anon;\n' +
+        'create policy "p" on public.messages for select to authenticated using (true);\n' +
+        'create policy "q" on public.todos for select to authenticated using (true);\n' +
+        'alter policy "p" on public.profiles to anon;\n' +
+        'grant select on all tables in schema public to anon;\n',
+      'supabase/migrations/20261002000000_b.sql': TODOS + 'grant select on public.todos to anon;\n',
+    });
+    const report = await diagnose({ cwd: dir });
+    expect(report.notCreated).toEqual(['public.messages', 'public.audit_log', 'public.profiles']);
+    expect(flat(formatDoctor(report))).toContain(
+      '3 relations are granted on or given policies in the migrations but never created in them ' +
+        '(probably created in the dashboard), so check cannot see them: public.messages, ' +
+        'public.audit_log, public.profiles. Relations your migrations create from now on are ' +
+        'checked.',
+    );
+
+    const one = project('not-created-one', {
+      'supabase/migrations/20261001000000_a.sql': 'grant select on public.messages to anon;\n',
+    });
+    const text = flat(formatDoctor(await diagnose({ cwd: one })));
+    expect(text).toContain(
+      'The migrations create no relations. 1 relation is granted on or given policies in the ' +
+        'migrations but never created in them (probably created in the dashboard), so check ' +
+        'cannot see it: public.messages.',
+    );
+    expect((await diagnose({ cwd: OPTED_IN })).notCreated).toEqual([]);
   });
 
   it('merges the roles of one relation and counts relations created twice', async () => {
@@ -252,6 +301,16 @@ describe('doctor command', () => {
     const again = fakeIo();
     expect(await run([...args, '--since', '20261001000000'], again.io)).toBe(ExitCode.Ok);
     expect(flat(again.stdout())).toContain('since is 20261001000000 (from --since)');
+  });
+
+  it('accepts --dir pointed at the migrations folder itself', async () => {
+    const dir = project('bare-folder', { 'db/migrations/001_todos.sql': TODOS });
+    const { io, stdout } = fakeIo(dir);
+    expect(await run(['doctor', '--dir', 'db/migrations'], io)).toBe(ExitCode.Ok);
+    expect(stdout()).toContain('Replayed 1 migration file: 1 relation in schema public');
+    expect(flat(stdout())).toContain(
+      'public.todos (service_role) at db/migrations/001_todos.sql:1',
+    );
   });
 
   it('uses colour only on a terminal without NO_COLOR', async () => {

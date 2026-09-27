@@ -1,0 +1,20 @@
+supabase-grants-lint doctor: readiness for 2026-10-30
+Replayed 2 migration files: 0 relations in schema public after the last one.
+
+Opt-in status
+  Opted in by supabase/migrations/20261001000000_opt_in.sql:1. No migrations after it yet; check
+  will enforce every new one.
+
+Replay trap
+  No migration re-enables automatic grants for new relations.
+  No supabase/config.toml found, so the local stack setting was not checked.
+
+History exposure
+  The migrations create no relations.
+  2 relations are granted on or given policies in the migrations but never created in them (probably
+  created in the dashboard), so check cannot see them: public.messages, public.audit_log. Relations
+  your migrations create from now on are checked.
+
+Next steps
+  1. Lint every new migration in CI: supabase-grants-lint init writes grants-lint.config.json and a
+     GitHub workflow that runs check.

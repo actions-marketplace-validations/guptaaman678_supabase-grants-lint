@@ -70,11 +70,31 @@ export function compareMigrations(a: MigrationFile, b: MigrationFile): number {
   return compareStrings(a.name, b.name) || compareStrings(a.relPath, b.relPath);
 }
 
+/**
+ * True when `dir` has no `supabase/migrations` but holds `.sql` files itself: `--dir` was given the
+ * migrations folder rather than the project root, so the default `migrations` means `dir`. Only
+ * for an explicit `--dir`, so stray `.sql` files in the working directory are never linted.
+ */
+function isMigrationsFolder(dir: string): boolean {
+  if (statSync(path.join(dir, DEFAULT_MIGRATIONS), { throwIfNoEntry: false }) !== undefined) {
+    return false;
+  }
+  if (statSync(dir, { throwIfNoEntry: false })?.isDirectory() !== true) return false;
+  return readdirSync(dir, { withFileTypes: true }).some(
+    (dirent) => isSqlFile(dirent.name) && isFileEntry(dirent, path.join(dir, dirent.name)),
+  );
+}
+
 export function discoverMigrations(options: DiscoverOptions = {}): Discovery {
   const cwd = path.resolve(options.cwd ?? process.cwd());
   const projectDir = path.resolve(cwd, options.projectDir ?? '.');
   const raw = options.migrations ?? DEFAULT_MIGRATIONS;
-  const entries = typeof raw === 'string' ? [raw] : [...raw];
+  const entries =
+    raw === DEFAULT_MIGRATIONS && projectDir !== cwd && isMigrationsFolder(projectDir)
+      ? ['.']
+      : typeof raw === 'string'
+        ? [raw]
+        : [...raw];
   if (entries.length === 0) {
     throw new UsageError('"migrations" is an empty list: give at least one directory or glob');
   }

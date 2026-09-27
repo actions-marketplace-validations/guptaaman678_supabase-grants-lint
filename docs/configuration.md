@@ -2,7 +2,9 @@
 
 Every setting is optional. With no config, `supabase-grants-lint check` reads
 `supabase/migrations/*.sql`, checks the `public` schema, and finds the enforcement boundary on its
-own.
+own. If `--dir` points at a folder that has no `supabase/migrations` but holds `.sql` files
+itself, that folder is read as the migrations folder, so `--dir supabase/migrations` and
+`--dir db/migrations` both work.
 
 ## Where the config lives
 

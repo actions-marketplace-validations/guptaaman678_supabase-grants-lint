@@ -16,6 +16,9 @@ import { quoteIdent, sqlGrantee } from './fix/sql.js';
 import { type LintOptions, loadProject } from './lint.js';
 import { toRelPath } from './load/discover.js';
 import { LEGACY_DEFAULTS } from './model/defaults.js';
+import type { RelationName } from './model/relations.js';
+import { qualified } from './replay/context.js';
+import type { ReplayResult } from './replay/engine.js';
 import { replayWithWindow, type ResolvedSince } from './replay/since.js';
 import { GL001 } from './rules/GL001.js';
 import { GL002 } from './rules/GL002.js';
@@ -62,6 +65,33 @@ export interface DoctorReport {
     readonly created: number;
     readonly unreachable: readonly Exposure[];
   };
+  /**
+   * In-scope relations that a named GRANT or REVOKE, or a policy, refers to but no migration
+   * creates (typically made in the dashboard), as `schema.name` in order of first reference. The
+   * replay cannot check them.
+   */
+  readonly notCreated: readonly string[];
+}
+
+/** In-scope relations the migrations grant on, revoke on or add policies to, but never create. */
+export function referencedNotCreated(replay: ReplayResult): string[] {
+  const created = new Set(
+    replay.files.flatMap((file) =>
+      file.events.flatMap((event) =>
+        event.kind === 'created' && event.object === 'relation' ? [qualified(event.name)] : [],
+      ),
+    ),
+  );
+  const referenced = replay.files.flatMap((file) =>
+    file.events.flatMap((event): RelationName[] => {
+      if (event.kind === 'grant' && event.objectKind === 'table') return [...event.untracked];
+      if (event.kind === 'policy') return [event.relation];
+      return [];
+    }),
+  );
+  return [
+    ...new Set(referenced.filter((name) => replay.inScope(name)).map((name) => qualified(name))),
+  ].filter((name) => !created.has(name));
 }
 
 /** Builds the report. Rejects with a `UsageError` (exit 2) for a bad config or path. */
@@ -106,6 +136,7 @@ export async function diagnose(options: LintOptions = {}): Promise<DoctorReport>
         .length,
       unreachable: [...unreachable.values()],
     },
+    notCreated: referencedNotCreated(replay),
   };
 }
 
@@ -222,7 +253,10 @@ const API_KEY = keep('[api] auto_expose_new_tables');
 
 function optInStatus(report: DoctorReport): string[] {
   const { since, enforced } = report;
-  const after = `check enforces the ${plural(enforced, 'migration file')} after it`;
+  const after =
+    enforced === 0
+      ? 'no migrations after it yet; check will enforce every new one'
+      : `check enforces the ${plural(enforced, 'migration file')} after it`;
   const from = since.source === 'cli' ? '--since' : 'the config';
   const lines: string[] = [];
   if (since.value === null) {
@@ -236,7 +270,8 @@ function optInStatus(report: DoctorReport): string[] {
     );
   } else if (since.detected !== null) {
     const { file, line } = since.detected.at;
-    lines.push(...wrap(`Opted in by ${file}:${String(line)}. ${after}.`, '  '));
+    const sentence = enforced === 0 ? `N${after.slice(1)}` : after;
+    lines.push(...wrap(`Opted in by ${file}:${String(line)}. ${sentence}.`, '  '));
   } else if (since.value === 'none') {
     lines.push(...wrap(`since is none (from ${from}): check enforces every migration file.`, '  '));
   } else {
@@ -288,6 +323,23 @@ function replayTrap(report: DoctorReport): string[] {
 }
 
 function historyExposure(report: DoctorReport): string[] {
+  return [...createdExposure(report), ...notCreated(report)];
+}
+
+function notCreated(report: DoctorReport): string[] {
+  const names = report.notCreated;
+  if (names.length === 0) return [];
+  const which = names.length === 1 ? 'is' : 'are';
+  return wrap(
+    `${plural(names.length, 'relation')} ${which} granted on or given policies in the ` +
+      `migrations but never created in them (probably created in the dashboard), so check ` +
+      `cannot see ${names.length === 1 ? 'it' : 'them'}: ${names.join(', ')}. Relations your ` +
+      'migrations create from now on are checked.',
+    '  ',
+  );
+}
+
+function createdExposure(report: DoctorReport): string[] {
   const { created, unreachable } = report.history;
   const head = 'Replayed without automatic grants (since none, platformDefaults explicit),';
   if (created === 0) return ['  The migrations create no relations.'];

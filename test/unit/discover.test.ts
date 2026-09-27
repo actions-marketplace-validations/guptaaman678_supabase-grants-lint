@@ -188,6 +188,49 @@ describe('discoverMigrations: directory', () => {
     ).toEqual(['../project/supabase/migrations/20261001090000_add_todos.sql']);
   });
 
+  it('treats a projectDir holding .sql files and no supabase/migrations as the migrations folder', () => {
+    touch(
+      'docs/migrations/002_add_orders.sql',
+      'docs/migrations/001_add_todos.sql',
+      'docs/migrations/README.md',
+      'docs/migrations/old/003_skipped.sql',
+    );
+    expect(names({ projectDir: 'docs/migrations' })).toEqual([
+      'docs/migrations/001_add_todos.sql',
+      'docs/migrations/002_add_orders.sql',
+    ]);
+  });
+
+  it('prefers supabase/migrations inside projectDir over .sql files beside it', () => {
+    touch('app/seed.sql', 'app/supabase/migrations/20261001090000_add_todos.sql');
+    expect(names({ projectDir: 'app' })).toEqual([
+      'app/supabase/migrations/20261001090000_add_todos.sql',
+    ]);
+  });
+
+  it('never falls back to the working directory itself, or when migrations is configured', () => {
+    touch('seed.sql', 'db/001_add_todos.sql');
+    for (const options of [{}, { projectDir: '.' }, { projectDir: root }]) {
+      expect((catchError(() => names(options)) as UsageError).message).toContain(
+        'Migrations directory not found: supabase/migrations',
+      );
+    }
+    expect((catchError(() => names({ projectDir: 'db', migrations: 'x' })) as Error).message).toBe(
+      'Migrations directory not found: db/x. Run from the project root, pass --dir <project>, ' +
+        'or set "migrations" in the config.',
+    );
+  });
+
+  it('keeps the not-found error when projectDir holds no .sql files or does not exist', () => {
+    touch('app/notes.txt', 'app/folder.sql/001_inner.sql');
+    expect((catchError(() => names({ projectDir: 'app' })) as Error).message).toContain(
+      'Migrations directory not found: app/supabase/migrations',
+    );
+    expect((catchError(() => names({ projectDir: 'gone' })) as Error).message).toContain(
+      'Migrations directory not found: gone/supabase/migrations',
+    );
+  });
+
   it('accepts Windows-style separators in the config value', () => {
     touch('db\u002fmigrations/20261001090000_add_todos.sql');
     expect(names({ migrations: 'db\\migrations' })).toEqual([

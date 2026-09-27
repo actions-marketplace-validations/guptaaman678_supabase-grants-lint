@@ -21,7 +21,7 @@ Examples:
   ${BIN} doctor
 `;
 
-const DISCOVERY_OPTIONS = `  --dir <path>          project directory (default: current directory)
+const DISCOVERY_OPTIONS = `  --dir <path>          project directory, or its migrations folder (default: current directory)
   --config <file>       config file (default: grants-lint.config.json or package.json#grantsLint)
   --since <version>     enforce files after this version; "none" enforces every file
   --schema <name>       schema to check, repeatable (default: public)

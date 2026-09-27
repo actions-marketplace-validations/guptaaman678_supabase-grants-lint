@@ -80,6 +80,13 @@ describe('golden doctor projects', () => {
     expect(trap?.localStack.autoExpose).toBe(true);
   });
 
+  it('names relations created outside the migrations (beta finding F2)', async () => {
+    const report = await diagnose({ cwd: path.join(PROJECTS, 'dashboard-tables') });
+    expect(report.relations).toBe(0);
+    expect(report.enforced).toBe(0);
+    expect(report.notCreated).toEqual(['public.messages', 'public.audit_log']);
+  });
+
   it('prints the opt-in SQL and the init command when no opt-in migration exists', async () => {
     const text = await doctorText('not-opted-in');
     expect(text).toContain(
