@@ -5,7 +5,6 @@ Find the Supabase migrations that break on a fresh environment: tables the Data 
 
 [![npm](https://img.shields.io/npm/v/supabase-grants-lint)](https://www.npmjs.com/package/supabase-grants-lint)
 [![ci](https://github.com/guptaaman678/supabase-grants-lint/actions/workflows/ci.yml/badge.svg)](https://github.com/guptaaman678/supabase-grants-lint/actions/workflows/ci.yml)
-[![npm provenance](https://img.shields.io/badge/npm-provenance-blue)](https://www.npmjs.com/package/supabase-grants-lint#provenance)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/guptaaman678/supabase-grants-lint/badge)](https://scorecard.dev/viewer/?uri=github.com/guptaaman678/supabase-grants-lint)
 [![mutation testing](https://github.com/guptaaman678/supabase-grants-lint/actions/workflows/mutation.yml/badge.svg)](https://github.com/guptaaman678/supabase-grants-lint/actions/workflows/mutation.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
