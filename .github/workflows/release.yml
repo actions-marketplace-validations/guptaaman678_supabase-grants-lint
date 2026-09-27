@@ -45,6 +45,7 @@ jobs:
           publish-script: npm run release
           pr-title: 'chore: version packages'
           commit-message: 'chore: version packages'
+          push-with-git-cli: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
