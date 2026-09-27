@@ -36,9 +36,9 @@ jobs:
         id: changesets
         uses: changesets/action@66d7d1ddafddf1ef45f98ee51a7496f9cdadb2f4 # v2.1.2
         with:
-          publish: npm run release
-          title: 'chore: version packages'
-          commit: 'chore: version packages'
+          publish-script: npm run release
+          pr-title: 'chore: version packages'
+          commit-message: 'chore: version packages'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
