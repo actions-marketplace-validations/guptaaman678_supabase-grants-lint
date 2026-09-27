@@ -56,7 +56,9 @@ The action fails the job (and the check on the pull request goes red) whenever
 `supabase-grants-lint check` would exit non-zero: any error finding, or more warnings than
 `--max-warnings` if you pass it through `args`. The SARIF upload and the `errors`/`warnings`
 outputs still run even when the primary check fails, so a red job still gets full annotations and
-a full Security tab report.
+a full Security tab report. If the SARIF upload itself cannot complete, for example a fork's pull
+request only gets a read-only token, or the repository has no Security tab, that failure does not
+fail the job: only the migrations themselves can turn the check red.
 
 ## Versioning
 
