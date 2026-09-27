@@ -12,7 +12,13 @@ permissions:
   contents: read
 
 jobs:
+  corpus:
+    uses: ./.github/workflows/corpus.yml
+    permissions:
+      contents: read
+
   release:
+    needs: corpus
     runs-on: ubuntu-latest
     permissions:
       id-token: write

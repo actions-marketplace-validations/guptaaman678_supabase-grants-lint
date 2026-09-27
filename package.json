@@ -66,6 +66,7 @@
     "mutation": "stryker run",
     "bench": "tsup && node scripts/bench.js",
     "pack-check": "tsup && node scripts/pack-install-check.js",
+    "corpus": "tsup && node scripts/corpus-regression.js",
     "changeset": "changeset",
     "version": "changeset version",
     "release": "changeset publish"

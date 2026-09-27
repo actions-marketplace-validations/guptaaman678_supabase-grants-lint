@@ -26,6 +26,7 @@ Node `>=22` is required (`.nvmrc` pins the version used in development).
 | `npm run format` / `format:check` | Prettier                                                                      |
 | `npm run mutation`                | Stryker mutation testing on `src/model`, `src/replay`, `src/rules`, `src/fix` |
 | `npm run bench`                   | cold-start `check` timings on generated projects of 100 and 500 migrations    |
+| `npm run corpus`                  | pinned corpus regression (network: fetches the projects in `test/corpus`)     |
 
 ## Fixture layout
 
@@ -67,6 +68,18 @@ git diff test/golden
 SARIF output is also validated against the SARIF 2.1.0 schema vendored in
 `test/golden/sarif-schema-2.1.0-rtm.5.json`.
 
+## Pinned corpus
+
+`test/corpus/pins.json` lists public projects with permissive licenses, each
+pinned to a commit, with the number of findings per rule the linter reported
+when it was pinned. `npm run corpus` fetches each one's `supabase/` folder at
+that commit, lints it and compares the counts; nothing from those projects is
+stored in this repository. `.github/workflows/corpus.yml` runs it weekly, when
+the pins change, and before every release step (`release.yml` calls it), but
+not on pull requests. When a linter change moves a count on purpose, record
+the new counts with `node scripts/corpus-regression.js --update` and explain
+the difference in the pull request.
+
 ## How to add a rule
 
 1. Read the rule's semantics in `docs/rules/` (or draft the page first if the
@@ -98,7 +111,7 @@ promise is published.
 
 Every push to `main` runs `.github/workflows/release.yml`
 ([Changesets](https://github.com/changesets/changesets) via
-`changesets/action`):
+`changesets/action`), after the pinned corpus regression passes:
 
 1. If unreleased changesets exist, the workflow opens or updates a
    "Version Packages" pull request. That PR runs `changeset version`: it

@@ -1,0 +1,143 @@
+{
+  "description": "Public repositories with permissive licenses, fetched at the pinned commit by scripts/corpus-regression.js. Expected counts are what the linter reported at the time of pinning; update them with --update only when a change in the linter explains the difference.",
+  "args": ["check", "--format", "json", "--since", "none"],
+  "config": {
+    "platformDefaults": "explicit"
+  },
+  "pins": [
+    {
+      "repo": "https://github.com/bdougie/contributor.info",
+      "sha": "364a9305ce093cda5ec1dcb8d3463aa4869fcc16",
+      "license": "MIT",
+      "expected": {
+        "files": 209,
+        "findings": {
+          "GL001": 137,
+          "GL002": 66,
+          "GL003": 298,
+          "GL008": 1,
+          "PARSE001": 11,
+          "PARSE002": 22
+        }
+      }
+    },
+    {
+      "repo": "https://github.com/Coder-MayankSaini/CyberCop",
+      "sha": "74c96273fd59ffd67225161dc84132f93b6093fe",
+      "license": "MIT",
+      "expected": {
+        "files": 20,
+        "findings": {
+          "GL001": 23,
+          "GL002": 23,
+          "GL003": 52,
+          "GL005": 3
+        }
+      }
+    },
+    {
+      "repo": "https://github.com/craigcossairt/hestia",
+      "sha": "a3288d93d94dbbd3c18222147f472cd5dd07098a",
+      "license": "MIT",
+      "expected": {
+        "files": 26,
+        "findings": {
+          "GL001": 13,
+          "GL002": 13,
+          "GL003": 19,
+          "PARSE002": 1
+        }
+      }
+    },
+    {
+      "repo": "https://github.com/justexecutetechnologies/Limpopo-Connect",
+      "sha": "d013ed90e0775905a445788b57984435ddb37eff",
+      "license": "MIT",
+      "expected": {
+        "files": 18,
+        "findings": {
+          "GL001": 19,
+          "GL002": 15,
+          "GL003": 93,
+          "PARSE001": 5
+        }
+      }
+    },
+    {
+      "repo": "https://github.com/ItayAvioz/2026-World-Cup-Social-Predicting-App",
+      "sha": "5dedd6e79c117c31663a68909590fa9e10517c28",
+      "license": "MIT",
+      "expected": {
+        "files": 143,
+        "findings": {
+          "GL001": 34,
+          "GL002": 19,
+          "GL003": 23,
+          "PARSE001": 4
+        }
+      }
+    },
+    {
+      "repo": "https://github.com/imriadh/career-pilot",
+      "sha": "ba9636ffe07ce84e45dff565b93c3d707ae8f687",
+      "license": "MIT",
+      "expected": {
+        "files": 3,
+        "findings": {
+          "GL001": 6,
+          "GL002": 6,
+          "GL003": 48,
+          "PARSE001": 1
+        }
+      }
+    },
+    {
+      "repo": "https://github.com/Emuthmartinez/respuesta-ve",
+      "sha": "79346bccf5f9e4f375a58570ff597cbd46681fd5",
+      "license": "MIT",
+      "expected": {
+        "files": 42,
+        "findings": {
+          "GL001": 47,
+          "GL003": 2
+        }
+      }
+    },
+    {
+      "repo": "https://github.com/judell/community-calendar",
+      "sha": "7ed342e3da6aff76d494d7e5540144ee8c92ca41",
+      "license": "Apache-2.0",
+      "expected": {
+        "files": 13,
+        "findings": {
+          "GL001": 14,
+          "GL002": 12
+        }
+      }
+    },
+    {
+      "repo": "https://github.com/automatronous/Aarogya-Samhiti",
+      "sha": "60423551af3517cde065d430ce9238c0ee22d63f",
+      "license": "Apache-2.0",
+      "expected": {
+        "files": 3,
+        "findings": {
+          "GL001": 6,
+          "GL002": 6,
+          "GL003": 1
+        }
+      }
+    },
+    {
+      "repo": "https://github.com/karmasakshi/jet",
+      "sha": "a02ed2f35b27ff0ee1bc771e23a171fd1d8ae06e",
+      "license": "MIT",
+      "expected": {
+        "files": 12,
+        "findings": {
+          "GL001": 3
+        }
+      }
+    }
+  ]
+}
