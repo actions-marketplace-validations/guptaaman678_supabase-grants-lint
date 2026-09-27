@@ -49,8 +49,9 @@ describe('GL007 replay-reenables-defaults', () => {
         severity: 'warn',
         message:
           'Replaying these migrations (supabase db reset, a preview branch) leaves default ' +
-          'privileges that give anon, authenticated, service_role all privileges on new tables ' +
-          'and all privileges on new sequences postgres creates in schema public, so new ' +
+          'privileges that give anon, authenticated, service_role select, insert, update, ' +
+          'delete on new tables and usage, select on new sequences postgres creates in schema ' +
+          'public, so new ' +
           'relations get grants there that production, with automatic grants off, does not ' +
           'give them. Revoke them in a new migration.',
         file: file(0),
@@ -78,7 +79,43 @@ describe('GL007 replay-reenables-defaults', () => {
       since: '20261001000000',
     });
     expect(at(findings)).toEqual(['20261001000000_m.sql:3 warn']);
-    expect(findings[0]?.message).toContain('all privileges on new tables and all privileges');
+    expect(findings[0]?.message).toContain(
+      'select, insert, update, delete on new tables and usage, select on new sequences',
+    );
+  });
+
+  it('counts only the privileges the announced opt-in revoke removes (ADR-009)', () => {
+    const narrow = `alter default privileges for role postgres in schema public
+  revoke select, insert, update, delete on tables from anon, authenticated, service_role;
+alter default privileges for role postgres in schema public
+  revoke usage, select on sequences from anon, authenticated, service_role;`;
+    expect(lint([BASELINE, narrow])).toEqual([]);
+    expect(
+      lint([
+        'alter default privileges grant truncate, references, trigger, maintain on tables to anon;',
+        'alter default privileges grant update on sequences to anon;',
+      ]),
+    ).toEqual([]);
+    // A leftover select is still reported, and the message names only that privilege.
+    const leftover = lint([
+      BASELINE,
+      narrow.replace('revoke select, insert,', 'revoke insert,'),
+      'alter default privileges grant truncate on tables to anon;',
+    ]);
+    expect(at(leftover)).toEqual(['20261001000000_m.sql:1 warn']);
+    expect(leftover[0]?.message).toContain(
+      'give anon, authenticated, service_role select on new tables postgres creates in schema public,',
+    );
+    // A later grant of only such privileges is not the anchor.
+    expect(
+      at(
+        lint([
+          'alter default privileges grant select on sequences to anon;',
+          'alter default privileges grant update, select on sequences to anon;',
+          'alter default privileges grant update on sequences to anon;',
+        ]),
+      ),
+    ).toEqual(['20261002000000_m.sql:1 warn']);
   });
 
   it('is an error when since was auto-detected and a later file re-grants', () => {

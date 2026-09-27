@@ -167,7 +167,7 @@
           "ruleIndex": 7,
           "level": "warning",
           "message": {
-            "text": "Replaying these migrations (supabase db reset, a preview branch) leaves default privileges that give anon, authenticated, service_role all privileges on new tables and all privileges on new sequences postgres creates in schema public, so new relations get grants there that production, with automatic grants off, does not give them. Revoke them in a new migration.\nFix: alter default privileges for role postgres in schema public revoke all on tables from anon, authenticated, service_role;\nalter default privileges for role postgres in schema public revoke all on sequences from anon, authenticated, service_role;"
+            "text": "Replaying these migrations (supabase db reset, a preview branch) leaves default privileges that give anon, authenticated, service_role select, insert, update, delete on new tables and usage, select on new sequences postgres creates in schema public, so new relations get grants there that production, with automatic grants off, does not give them. Revoke them in a new migration.\nFix: alter default privileges for role postgres in schema public revoke all on tables from anon, authenticated, service_role;\nalter default privileges for role postgres in schema public revoke all on sequences from anon, authenticated, service_role;"
           },
           "locations": [
             {

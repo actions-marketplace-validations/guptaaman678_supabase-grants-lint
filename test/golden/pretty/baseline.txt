@@ -1,7 +1,7 @@
 supabase/migrations/20260101000000_remote schema.sql
   1:1  warn   GL000  No opt-in migration found, so the rules that check new relations (GL001 to GL006, GL008) checked no file. If your project was opted in from the dashboard, or you are past 2026-10-30, set since to the last migration applied before that (supabase-grants-lint init --since next). Otherwise add the opt-in migration that supabase-grants-lint doctor prints.
               docs  https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL000.md
-  4:1  warn   GL007  Replaying these migrations (supabase db reset, a preview branch) leaves default privileges that give anon, authenticated, service_role all privileges on new tables and all privileges on new sequences postgres creates in schema public, so new relations get grants there that production, with automatic grants off, does not give them. Revoke them in a new migration.
+  4:1  warn   GL007  Replaying these migrations (supabase db reset, a preview branch) leaves default privileges that give anon, authenticated, service_role select, insert, update, delete on new tables and usage, select on new sequences postgres creates in schema public, so new relations get grants there that production, with automatic grants off, does not give them. Revoke them in a new migration.
               fix   alter default privileges for role postgres in schema public revoke all on tables from anon, authenticated, service_role;
                     alter default privileges for role postgres in schema public revoke all on sequences from anon, authenticated, service_role;
               docs  https://github.com/guptaaman678/supabase-grants-lint/blob/v<version>/docs/rules/GL007.md

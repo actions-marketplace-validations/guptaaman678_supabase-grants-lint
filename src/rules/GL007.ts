@@ -11,11 +11,16 @@
  * reads every file, enforced or not, and reports once, at the last statement that granted
  * something still in effect: warn, or error when `since` was auto-detected and that statement
  * comes after the opt-in file.
+ *
+ * Only the privileges the announced opt-in revoke removes count (`PLATFORM_REVOKE`, ADR-009):
+ * production opted in with that SQL keeps TRUNCATE, REFERENCES, TRIGGER, MAINTAIN and sequence
+ * UPDATE too, none of them reaches the Data API, and GL008 reports them per relation.
  */
 import { quoteIdent, sqlGrantee } from '../fix/sql.js';
-import { type AclKind, type Grantee, PUBLIC, privilegesFor } from '../model/acl.js';
+import { type AclKind, type Grantee, PUBLIC } from '../model/acl.js';
 import { DefaultPrivileges } from '../model/defaults.js';
 import type { DefaultPrivilegesEvent } from '../replay/context.js';
+import { PLATFORM_REVOKE } from '../replay/platform-revoke.js';
 import { checkedClientRoles } from './client-roles.js';
 import type { FileContext, Rule, RuleContext, RuleFinding } from './types.js';
 
@@ -62,7 +67,11 @@ function entries(ctx: RuleContext, defaults: DefaultPrivileges): Entry[] {
     schemas.flatMap((schema) => {
       const acl = defaults.entry(ctx.config.migrationRole, schema, kind);
       const held = new Map(
-        [...flagged].map((g) => [g, acl.privileges(g)] as const).filter(([, p]) => p.length > 0),
+        [...flagged]
+          .map(
+            (g) => [g, acl.privileges(g).filter((p) => PLATFORM_REVOKE[kind].includes(p))] as const,
+          )
+          .filter(([, p]) => p.length > 0),
       );
       return held.size === 0 ? [] : [{ kind, schema, held }];
     }),
@@ -92,10 +101,7 @@ function message(ctx: RuleContext, found: readonly Entry[]): string {
       found.filter((e) => e.kind === kind).flatMap((e) => [...e.held.values()].flat()),
     );
     if (held.size === 0) return [];
-    const all = privilegesFor(kind);
-    const privileges = all.every((p) => held.has(p))
-      ? 'all privileges'
-      : all.filter((p) => held.has(p)).join(', ');
+    const privileges = PLATFORM_REVOKE[kind].filter((p) => held.has(p)).join(', ');
     return [`${privileges} on new ${plural(kind)}`];
   });
   const where = found.some((e) => e.schema === null)
