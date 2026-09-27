@@ -27,6 +27,10 @@
     "name": "Aman Gupta",
     "url": "https://github.com/guptaaman678"
   },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "type": "module",
   "exports": {
     ".": {
@@ -62,7 +66,9 @@
     "mutation": "stryker run",
     "bench": "tsup && node scripts/bench.js",
     "pack-check": "tsup && node scripts/pack-install-check.js",
-    "changeset": "changeset"
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "3.0.3",

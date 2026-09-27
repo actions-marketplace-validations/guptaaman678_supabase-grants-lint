@@ -94,6 +94,37 @@ user-visible change needs a changeset (`npx changeset`); internal-only changes
 do not. Releases follow SemVer and stay `0.x` until the project's stability
 promise is published.
 
+## Release procedure
+
+Every push to `main` runs `.github/workflows/release.yml`
+([Changesets](https://github.com/changesets/changesets) via
+`changesets/action`):
+
+1. If unreleased changesets exist, the workflow opens or updates a
+   "Version Packages" pull request. That PR runs `changeset version`: it
+   bumps `package.json`, writes `CHANGELOG.md` and deletes the consumed
+   changeset files. Nothing is published yet.
+2. A maintainer reviews and merges the Version Packages PR like any other
+   PR.
+3. That merge re-runs the workflow. With no changesets left to version, it
+   runs the `publish` command (`npm run release`, which is `changeset
+publish`): this publishes the package to npm with provenance (via OIDC
+   trusted publishing, `id-token: write`, no npm token in the repository),
+   creates the git tag `vX.Y.Z`, and creates a GitHub Release from the
+   changelog entries.
+4. A final step moves the floating major-version tag used by the GitHub
+   Action (for example `v0`, later `v1`) to point at the new release tag,
+   so `uses: guptaaman678/supabase-grants-lint@v0` always runs the latest
+   released `0.x` version.
+5. Tick the Marketplace listing checkbox on the new release (GitHub UI,
+   Releases page).
+
+The very first publish (0.1.0) is done by hand by a maintainer from a clean
+checkout of the release tag (`npm ci && npm run build && npm publish`),
+because npm trusted publishing can only be configured once the package
+already exists on the registry; it therefore has no provenance. 0.1.1
+onward is published by this workflow with provenance.
+
 ## Triage expectations
 
 Reports are triaged in the order: internal errors and crashes, then false
