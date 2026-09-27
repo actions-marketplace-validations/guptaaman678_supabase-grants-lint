@@ -61,6 +61,7 @@
     "format:check": "prettier --check .",
     "mutation": "stryker run",
     "bench": "tsup && node scripts/bench.js",
+    "pack-check": "tsup && node scripts/pack-install-check.js",
     "changeset": "changeset"
   },
   "devDependencies": {
