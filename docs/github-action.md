@@ -28,6 +28,9 @@ jobs:
       - uses: guptaaman678/supabase-grants-lint@v0
 ```
 
+`supabase-grants-lint init` writes this workflow to `.github/workflows/grants-lint.yml`, next to a
+`grants-lint.config.json`.
+
 `permissions.security-events: write` is required for the SARIF upload step; drop it (and set
 `sarif: false`, see below) if your repository does not have the Security tab (for example a
 private repository on a plan without code scanning).

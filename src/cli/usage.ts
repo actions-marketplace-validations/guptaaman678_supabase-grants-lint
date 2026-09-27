@@ -71,10 +71,12 @@ Example:
 `,
   init: `Usage: ${BIN} init [options]
 
-Writes grants-lint.config.json and .github/workflows/grants-lint.yml.
+Writes grants-lint.config.json and .github/workflows/grants-lint.yml. Existing files are left
+alone (exit 2) unless --force is given.
 
 Options:
-  --since <next|version>  enforce from this version; "next" means files after the latest one
+  --since <next|version>  enforce files after this version; "next" is the latest migration,
+                          "none" enforces every file (default: auto-detect the opt-in)
   --force                 overwrite existing files
   --no-workflow           write only the config file
   --dir <path>            project directory (default: current directory)

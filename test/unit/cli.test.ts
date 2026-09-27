@@ -184,12 +184,6 @@ describe('run', () => {
     expect(stderr()).toContain(message);
   });
 
-  it('reports commands that are not built yet as usage errors', async () => {
-    const { io, stderr } = fakeIo();
-    expect(await run(['init'], io)).toBe(ExitCode.Usage);
-    expect(stderr()).toContain('init is not available in this build yet.');
-  });
-
   it.each([
     ['json', /^\{\n {2}"schemaVersion": 1,/],
     ['sarif', /^\{\n {2}"\$schema": "https:\/\/json\.schemastore\.org\/sarif-2\.1\.0\.json",/],

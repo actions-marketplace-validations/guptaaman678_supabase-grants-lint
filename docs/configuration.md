@@ -32,7 +32,9 @@ Sources replace whole keys: a `rules` or `ignore` in `--config` replaces the one
 }
 ```
 
-The `$schema` line gives editors completion and hover help. An invalid config (unknown key, wrong
+`supabase-grants-lint init` writes a starting file with the `$schema` line and `since`
+(`init --since next` sets it to your latest migration). The `$schema` line gives editors
+completion and hover help. An invalid config (unknown key, wrong
 type, rule ID that does not exist) is a usage error: `check` exits 2 and names the file and key,
 with a suggestion for typos.
 

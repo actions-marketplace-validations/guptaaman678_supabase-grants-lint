@@ -3,10 +3,19 @@
  * `node dist/cli/index.js` in a child process for each exit code of the CLI contract (§6.3).
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const BIN = path.join(ROOT, 'dist/cli/index.js');
@@ -135,6 +144,67 @@ describe('exit code 2', () => {
     expect(stderr).toContain(message);
     expect(stderr).toContain('Run "supabase-grants-lint --help" for usage.');
     expect(code).toBe(2);
+  });
+});
+
+describe('init then check (T4.8)', () => {
+  let tmp: string;
+  beforeAll(() => {
+    tmp = mkdtempSync(path.join(os.tmpdir(), 'grants-lint-e2e-init-'));
+  });
+  afterAll(() => {
+    rmSync(tmp, { recursive: true, force: true });
+  });
+
+  function project(name: string, from?: string): string {
+    const dir = path.join(tmp, name);
+    if (from === undefined) mkdirSync(path.join(dir, 'supabase/migrations'), { recursive: true });
+    else cpSync(path.join(ROOT, PROJECTS, from), dir, { recursive: true });
+    return dir;
+  }
+
+  it('a fresh project with no migrations yet', () => {
+    const dir = project('fresh');
+    const init = cli(['init', '--dir', dir]);
+    expect(init.stderr).toBe('');
+    expect(init.code).toBe(0);
+    expect(existsSync(path.join(dir, '.github/workflows/grants-lint.yml'))).toBe(true);
+    const { code, stderr } = cli(['check', '--dir', dir]);
+    expect(stderr).toBe('');
+    expect(code).toBe(0);
+  });
+
+  it('a clean project, auto-detecting the opt-in', () => {
+    const dir = project('clean', 'clean');
+    expect(cli(['init', '--dir', dir]).code).toBe(0);
+    expect(cli(['check', '--dir', dir]).code).toBe(0);
+  });
+
+  it('--since next accepts the existing history and enforces what comes after', () => {
+    const dir = project('errors', 'errors');
+    expect(cli(['check', '--dir', dir]).code).toBe(1);
+    const init = cli(['init', '--dir', dir, '--since', 'next', '--no-workflow']);
+    expect(init.stdout).toMatch(/^Wrote .*grants-lint\.config\.json \(since \d{14}\)\n/);
+    expect(init.code).toBe(0);
+    expect(cli(['check', '--dir', dir]).code).toBe(0);
+    writeFileSync(
+      path.join(dir, 'supabase/migrations/29991231000000_add_orders.sql'),
+      'create table public.orders (id bigint primary key);\n',
+    );
+    expect(cli(['check', '--dir', dir]).code).toBe(1);
+  });
+
+  it('refuses to overwrite without --force (exit 2), then overwrites with it', () => {
+    const dir = project('twice');
+    expect(cli(['init', '--dir', dir]).code).toBe(0);
+    const again = cli(['init', '--dir', dir]);
+    expect(again.stdout).toBe('');
+    expect(again.stderr).toContain('already exist; nothing was written.');
+    expect(again.code).toBe(2);
+    expect(cli(['init', '--dir', dir, '--force', '--since', 'none']).code).toBe(0);
+    expect(readFileSync(path.join(dir, 'grants-lint.config.json'), 'utf8')).toContain(
+      '"since": "none"',
+    );
   });
 });
 
