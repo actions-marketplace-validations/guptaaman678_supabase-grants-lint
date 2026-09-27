@@ -24,8 +24,17 @@ jobs:
       - run: npm ci
       - run: npm run build
       - id: pack
+        env:
+          NO_COLOR: '1'
+          FORCE_COLOR: '0'
         run: |
-          FILE="$(npm pack --silent)"
+          set -euo pipefail
+          OUT="$(npm pack --json)"
+          FILE="$(node -e "
+            const m = process.argv[1].match(/\[\s*\{[\s\S]*\}\s*\]/);
+            if (!m) { console.error('could not find JSON array in npm pack output'); process.exit(1); }
+            console.log(JSON.parse(m[0])[0].filename);
+          " "$OUT")"
           echo "tarball=$PWD/$FILE" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
