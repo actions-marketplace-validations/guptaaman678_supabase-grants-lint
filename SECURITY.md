@@ -28,7 +28,7 @@ otherwise.
 
 ## Scope
 
-In scope: the CLI, the programmatic API, the GitHub Action, and the
-pre-commit hook, as published from this repository. Out of scope: the
-Supabase platform itself, and any database `supabase-grants-lint` did not
-connect to (v0.1 never connects to a database).
+In scope: the CLI, the programmatic API, and the GitHub Action, as published
+from this repository. Out of scope: the Supabase platform itself, and any
+database `supabase-grants-lint` did not connect to (v0.1 never connects to a
+database).

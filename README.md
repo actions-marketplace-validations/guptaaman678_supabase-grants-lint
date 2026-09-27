@@ -131,22 +131,6 @@ All keys and flags: [docs/configuration.md](docs/configuration.md). Other comman
 `supabase-grants-lint explain public.todos` prints the grant timeline of one table, and
 `--format json|sarif|github` changes the output.
 
-## pre-commit hook
-
-Add to your `.pre-commit-config.yaml`:
-
-```yaml
-repos:
-  - repo: https://github.com/guptaaman678/supabase-grants-lint
-    rev: v0.1.0
-    hooks:
-      - id: supabase-grants-lint
-```
-
-The hook runs `supabase-grants-lint check` whenever a file under `supabase/migrations/` changes,
-against the whole migrations directory (not just the staged files, since a finding can depend on
-grants made in an earlier file). See [`.pre-commit-hooks.yaml`](.pre-commit-hooks.yaml).
-
 ## FAQ
 
 "Does it touch my database?", "Why does it flag my old migrations?", "How is it different from
