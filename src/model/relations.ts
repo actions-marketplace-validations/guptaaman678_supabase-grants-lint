@@ -1,13 +1,21 @@
 /**
  * The catalog the replay builds and every rule reads: tracked relations, sequences, policies and
- * default privileges (spec §6.1). A `Catalog` is immutable; every change returns a new one. The
+ * default privileges (spec §6.1), plus row level security, event triggers, publications and notes,
+ * which only the engine export reads. A `Catalog` is immutable; every change returns a new one. The
  * value the replay holds at the end of a file is therefore that file's snapshot: later statements
  * produce new catalogs and cannot change it.
  *
  * The catalog records state only. Which schemas are in scope, how names resolve and what a
  * statement means are the replay engine's job; what counts as a problem is the rules'.
  */
-import type { PolicyCommand, PolicyPredicate, RelationKind, SourceLocation } from '../parse/ir.js';
+import type { AutoRlsMode } from '../config/defaults.js';
+import type {
+  EventTriggerState,
+  PolicyCommand,
+  PolicyPredicate,
+  RelationKind,
+  SourceLocation,
+} from '../parse/ir.js';
 import { Acl, type Grantee } from './acl.js';
 import { DefaultPrivileges } from './defaults.js';
 
@@ -17,11 +25,94 @@ export interface RelationName {
   readonly name: string;
 }
 
+/** Row level security of a relation. grants-lint's rules do not read it; the engine export does. */
+export interface RowSecurity {
+  readonly enabled: boolean;
+  readonly forced: boolean;
+  /** Why `enabled` has its value: the `CREATE` default, an `ALTER TABLE`, or automatic RLS. */
+  readonly source: 'default' | 'statement' | 'auto-rls';
+  /** The statement, or the trigger or function that made automatic RLS apply; `null` otherwise. */
+  readonly at: SourceLocation | null;
+}
+
+export const RLS_OFF: RowSecurity = Object.freeze({
+  enabled: false,
+  forced: false,
+  source: 'default',
+  at: null,
+});
+
 export interface Relation extends RelationName {
   readonly kind: RelationKind;
   readonly acl: Acl;
   /** The CREATE statement, or `null` for a relation the replay did not see created. */
   readonly created: SourceLocation | null;
+  readonly rls: RowSecurity;
+}
+
+export interface EventTriggerDefinition {
+  readonly name: string;
+  readonly event: string;
+  /** `WHEN TAG IN (...)` as written, or `null` for every tag. */
+  readonly tags: readonly string[] | null;
+  readonly function: RelationName;
+  readonly state: EventTriggerState;
+  readonly created: SourceLocation;
+}
+
+/** The function Supabase's automatic RLS template creates (and a pulled baseline keeps). */
+export const AUTO_RLS_FUNCTION: RelationName = Object.freeze({
+  schema: 'public',
+  name: 'rls_auto_enable',
+});
+
+/**
+ * Supabase's automatic RLS trigger, by Studio's own test: named `ensure_rls` or calling a function
+ * named `rls_auto_enable`, on `ddl_command_end`, for every tag or for `CREATE TABLE` among them,
+ * and firing in normal operation (enabled, or enabled always). Its body is not read.
+ */
+export function isAutoRlsTrigger(trigger: EventTriggerDefinition): boolean {
+  return (
+    (trigger.name === 'ensure_rls' || trigger.function.name === AUTO_RLS_FUNCTION.name) &&
+    trigger.event === 'ddl_command_end' &&
+    (trigger.tags === null || trigger.tags.some((tag) => tag.toUpperCase() === 'CREATE TABLE')) &&
+    (trigger.state === 'O' || trigger.state === 'A')
+  );
+}
+
+/**
+ * A publication's membership (engine only). Postgres keys membership by table, so a renamed table
+ * stays a member and a dropped one leaves. `tables` and `excluded` keep first-seen order.
+ */
+export interface PublicationState {
+  readonly name: string;
+  /** In the initial state (`platformPublications`), created by a migration, or first seen in an `ALTER`. */
+  readonly origin: 'platform' | 'migration' | 'unseen';
+  readonly allTables: boolean;
+  /** `FOR TABLES IN SCHEMA`. */
+  readonly schemas: readonly string[];
+  /** Tables added by name. */
+  readonly tables: readonly RelationName[];
+  /**
+   * Set when a body the replay does not interpret may have changed the membership (ADR-015): a
+   * `DO` block, or a called function, that alters, creates or drops this publication.
+   */
+  readonly uncertain: SourceLocation | null;
+  /** Tables a plain statement removed after `uncertain` was set: known non-members. */
+  readonly excluded: readonly RelationName[];
+}
+
+/** A function whose body alters, creates or drops publications, while it exists. */
+export interface PublicationFunction {
+  readonly name: RelationName;
+  readonly publications: readonly string[];
+}
+
+/** Something the replay saw but could not apply, kept for the engine export. */
+export interface EngineNote {
+  readonly code: string;
+  readonly message: string;
+  readonly at: SourceLocation;
 }
 
 export interface Sequence extends RelationName {
@@ -65,7 +156,7 @@ function key({ schema, name }: RelationName): string {
   return JSON.stringify([schema, name]);
 }
 
-function sameName(a: RelationName, b: RelationName): boolean {
+export function sameName(a: RelationName, b: RelationName): boolean {
   return a.schema === b.schema && a.name === b.name;
 }
 
@@ -75,6 +166,27 @@ interface State {
   readonly sequences: ReadonlyMap<string, Sequence>;
   /** Keyed by relation, then policy name. Policies may exist on relations the catalog does not track. */
   readonly policies: ReadonlyMap<string, ReadonlyMap<string, Policy>>;
+  readonly eventTriggers: ReadonlyMap<string, EventTriggerDefinition>;
+  readonly autoRlsMode: AutoRlsMode;
+  /** Where `public.rls_auto_enable()` returning `event_trigger` was defined, while it exists. */
+  readonly autoRlsFunction: SourceLocation | null;
+  /** By name, in creation order. */
+  readonly publications: ReadonlyMap<string, PublicationState>;
+  /** Keyed by function name (argument lists are not kept). */
+  readonly publicationFunctions: ReadonlyMap<string, PublicationFunction>;
+  readonly notes: readonly EngineNote[];
+}
+
+function without(list: readonly RelationName[], name: RelationName): RelationName[] {
+  return list.filter((t) => !sameName(t, name));
+}
+
+function renamed(
+  list: readonly RelationName[],
+  from: RelationName,
+  to: RelationName,
+): RelationName[] {
+  return list.map((t) => (sameName(t, from) ? Object.freeze({ ...to }) : t));
 }
 
 export class Catalog {
@@ -84,17 +196,141 @@ export class Catalog {
     this.#state = state;
   }
 
-  static create(defaults: DefaultPrivileges = DefaultPrivileges.EMPTY): Catalog {
+  static create(
+    defaults: DefaultPrivileges = DefaultPrivileges.EMPTY,
+    autoRlsMode: AutoRlsMode = 'auto',
+    platformPublications: readonly string[] = [],
+  ): Catalog {
     return new Catalog({
       defaults,
       relations: new Map(),
       sequences: new Map(),
       policies: new Map(),
+      eventTriggers: new Map(),
+      autoRlsMode,
+      autoRlsFunction: null,
+      publications: new Map(
+        platformPublications.map((name) => [
+          name,
+          Object.freeze({
+            name,
+            origin: 'platform' as const,
+            allTables: false,
+            schemas: [],
+            tables: [],
+            uncertain: null,
+            excluded: [],
+          }),
+        ]),
+      ),
+      publicationFunctions: new Map(),
+      notes: [],
     });
   }
 
   get defaults(): DefaultPrivileges {
     return this.#state.defaults;
+  }
+
+  get autoRlsMode(): AutoRlsMode {
+    return this.#state.autoRlsMode;
+  }
+
+  get autoRlsFunction(): SourceLocation | null {
+    return this.#state.autoRlsFunction;
+  }
+
+  /**
+   * Whether a table created now in `public` starts with RLS on, and why: `'start'` under
+   * `autoRls: "on"`; else (unless `"off"`) the first enabled automatic RLS trigger; else, under
+   * `"auto"`, the `rls_auto_enable` function; `null` when it does not apply.
+   */
+  autoRls(): SourceLocation | 'start' | null {
+    switch (this.#state.autoRlsMode) {
+      case 'off':
+        return null;
+      case 'on':
+        return 'start';
+      case 'auto':
+        return this.eventTriggers().find(isAutoRlsTrigger)?.created ?? this.#state.autoRlsFunction;
+    }
+  }
+
+  eventTrigger(name: string): EventTriggerDefinition | undefined {
+    return this.#state.eventTriggers.get(name);
+  }
+
+  /** Event triggers, in creation order. */
+  eventTriggers(): readonly EventTriggerDefinition[] {
+    return [...this.#state.eventTriggers.values()];
+  }
+
+  notes(): readonly EngineNote[] {
+    return this.#state.notes;
+  }
+
+  publication(name: string): PublicationState | undefined {
+    return this.#state.publications.get(name);
+  }
+
+  /** Publications, in creation order (a redefinition keeps its place). */
+  publications(): readonly PublicationState[] {
+    return [...this.#state.publications.values()];
+  }
+
+  /** Whether any publication names the relation, as a member or as excluded. */
+  listsInPublication(name: RelationName): boolean {
+    return this.publications().some((p) =>
+      [...p.tables, ...p.excluded].some((t) => sameName(t, name)),
+    );
+  }
+
+  /** Adds a publication, or replaces the one with the same name. */
+  putPublication(publication: PublicationState): Catalog {
+    const publications = new Map(this.#state.publications);
+    publications.set(
+      publication.name,
+      Object.freeze({
+        ...publication,
+        schemas: Object.freeze([...publication.schemas]),
+        tables: Object.freeze(publication.tables.map((t) => Object.freeze({ ...t }))),
+        excluded: Object.freeze(publication.excluded.map((t) => Object.freeze({ ...t }))),
+      }),
+    );
+    return new Catalog({ ...this.#state, publications });
+  }
+
+  dropPublication(name: string): Catalog {
+    const publications = new Map(this.#state.publications);
+    publications.delete(name);
+    return new Catalog({ ...this.#state, publications });
+  }
+
+  publicationFunctions(): readonly PublicationFunction[] {
+    return [...this.#state.publicationFunctions.values()];
+  }
+
+  publicationFunction(name: RelationName): PublicationFunction | undefined {
+    return this.#state.publicationFunctions.get(key(name));
+  }
+
+  /** Records a function whose body changes publications, or replaces its record. */
+  putPublicationFunction(fn: PublicationFunction): Catalog {
+    const publicationFunctions = new Map(this.#state.publicationFunctions);
+    publicationFunctions.set(
+      key(fn.name),
+      Object.freeze({
+        name: Object.freeze({ ...fn.name }),
+        publications: Object.freeze([...fn.publications]),
+      }),
+    );
+    return new Catalog({ ...this.#state, publicationFunctions });
+  }
+
+  dropPublicationFunction(name: RelationName): Catalog {
+    const publicationFunctions = new Map(this.#state.publicationFunctions);
+    publicationFunctions.delete(key(name));
+    return new Catalog({ ...this.#state, publicationFunctions });
   }
 
   relation(name: RelationName): Relation | undefined {
@@ -144,13 +380,47 @@ export class Catalog {
     kind: RelationKind,
     creator: string,
     created: SourceLocation | null,
+    rls: RowSecurity = RLS_OFF,
   ): Catalog {
     const k = key(name);
     if (this.#state.relations.has(k)) throw new Error(`relation ${k} is already tracked`);
     const acl = this.defaults.effective(creator, name.schema, 'table');
     const relations = new Map(this.#state.relations);
-    relations.set(k, Object.freeze({ schema: name.schema, name: name.name, kind, acl, created }));
+    relations.set(
+      k,
+      Object.freeze({ schema: name.schema, name: name.name, kind, acl, created, rls }),
+    );
     return new Catalog({ ...this.#state, relations });
+  }
+
+  setRelationRls(name: RelationName, rls: RowSecurity): Catalog {
+    const k = key(name);
+    const relation = this.#state.relations.get(k);
+    if (relation === undefined) throw new Error(`relation ${k} is not tracked`);
+    const relations = new Map(this.#state.relations);
+    relations.set(k, Object.freeze({ ...relation, rls: Object.freeze({ ...rls }) }));
+    return new Catalog({ ...this.#state, relations });
+  }
+
+  /** Adds an event trigger, or replaces the one with the same name. */
+  putEventTrigger(trigger: EventTriggerDefinition): Catalog {
+    const eventTriggers = new Map(this.#state.eventTriggers);
+    eventTriggers.set(trigger.name, Object.freeze({ ...trigger }));
+    return new Catalog({ ...this.#state, eventTriggers });
+  }
+
+  dropEventTrigger(name: string): Catalog {
+    const eventTriggers = new Map(this.#state.eventTriggers);
+    eventTriggers.delete(name);
+    return new Catalog({ ...this.#state, eventTriggers });
+  }
+
+  withAutoRlsFunction(at: SourceLocation | null): Catalog {
+    return new Catalog({ ...this.#state, autoRlsFunction: at });
+  }
+
+  addNote(note: EngineNote): Catalog {
+    return new Catalog({ ...this.#state, notes: [...this.#state.notes, Object.freeze(note)] });
   }
 
   /** Adds a sequence whose ACL is `creator`'s default sequence privileges in its schema. */
@@ -189,7 +459,11 @@ export class Catalog {
     return new Catalog({ ...this.#state, sequences });
   }
 
-  /** Removes the relation (if tracked), its policies and the sequences its serial columns own. */
+  /**
+   * Removes the relation (if tracked), its policies and the sequences its serial columns own. The
+   * table leaves every publication; where membership is uncertain, a table created later under the
+   * same name is a known non-member, so the name becomes `excluded`.
+   */
   dropRelation(name: RelationName): Catalog {
     const relations = new Map(this.#state.relations);
     relations.delete(key(name));
@@ -200,7 +474,16 @@ export class Catalog {
     );
     const policies = new Map(this.#state.policies);
     policies.delete(key(name));
-    return new Catalog({ ...this.#state, relations, sequences, policies });
+    const publications = new Map(
+      [...this.#state.publications].map(([n, p]) => {
+        const excluded =
+          p.uncertain === null
+            ? p.excluded
+            : [...without(p.excluded, name), Object.freeze({ ...name })];
+        return [n, Object.freeze({ ...p, tables: without(p.tables, name), excluded })];
+      }),
+    );
+    return new Catalog({ ...this.#state, relations, sequences, policies, publications });
   }
 
   dropSequence(name: RelationName): Catalog {
@@ -212,7 +495,7 @@ export class Catalog {
   /**
    * `RENAME TO` or `SET SCHEMA`: the ACL, the `created` marker and the policies move with the
    * relation. Owned sequences follow their table: they keep their name, and move with it to a new
-   * schema, as Postgres does.
+   * schema, as Postgres does. Publications keep the table under its new name.
    */
   moveRelation(from: RelationName, to: RelationName): Catalog {
     const fromKey = key(from);
@@ -251,7 +534,17 @@ export class Catalog {
         ),
       );
     }
-    return new Catalog({ ...this.#state, relations, sequences, policies });
+    const publications = new Map(
+      [...this.#state.publications].map(([n, p]) => [
+        n,
+        Object.freeze({
+          ...p,
+          tables: renamed(p.tables, from, to),
+          excluded: renamed(p.excluded, from, to),
+        }),
+      ]),
+    );
+    return new Catalog({ ...this.#state, relations, sequences, policies, publications });
   }
 
   /** `ALTER SEQUENCE ... RENAME TO | SET SCHEMA`; ownership is kept. */

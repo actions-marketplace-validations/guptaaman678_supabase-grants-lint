@@ -3,7 +3,7 @@
  * catalog, and keeps the catalog as it stands at the end of each file. Rules read those end-of-file
  * snapshots: grants later in the same file count, grants in a later file do not.
  */
-import type { PlatformDefaults } from '../config/defaults.js';
+import { type AutoRlsMode, DEFAULT_CONFIG, type PlatformDefaults } from '../config/defaults.js';
 import { DefaultPrivileges } from '../model/defaults.js';
 import { Catalog, type Policy, type Relation, type RelationName } from '../model/relations.js';
 import type { SourceLocation, Statement } from '../parse/ir.js';
@@ -14,7 +14,20 @@ import { dropObjects } from './handlers/drop.js';
 import { grant } from './handlers/grant.js';
 import { renameObject, setSchema } from './handlers/move.js';
 import { alterPolicy, createPolicy, dropPolicy, renamePolicy } from './handlers/policy.js';
+import {
+  dropPublicationFunctions,
+  dynamicSqlPublications,
+  functionCall,
+  functionPublications,
+  publication,
+} from './handlers/publication.js';
 import { setRole } from './handlers/role.js';
+import {
+  alterTableRowSecurity,
+  dropFunctions,
+  eventTrigger,
+  functionDefinition,
+} from './handlers/row-security.js';
 import { dynamicSql, unparseable } from './handlers/unmodelled.js';
 import { applyPlatformRevoke } from './platform-revoke.js';
 
@@ -38,6 +51,10 @@ export interface EngineOptions extends ReplayOptions {
    * item 1); `null` or omitted for none. Set by `replayWithWindow` from the `since` setting.
    */
   readonly platformRevokeBefore?: number | null;
+  /** Config `autoRls`; default `"auto"`. Only the engine export reads the RLS state it drives. */
+  readonly autoRls?: AutoRlsMode;
+  /** Config `platformPublications`: publications that exist, empty, before the first file. */
+  readonly platformPublications?: readonly string[];
 }
 
 /** A relation whose CREATE statement the replay saw. */
@@ -111,14 +128,35 @@ function apply(stmt: Statement, ctx: ReplayContext): void {
     case 'SetRole':
       setRole(stmt, ctx);
       break;
+    case 'AlterTableRowSecurity':
+      alterTableRowSecurity(stmt, ctx);
+      break;
+    case 'EventTrigger':
+      eventTrigger(stmt, ctx);
+      break;
+    case 'FunctionDefinition':
+      functionDefinition(stmt, ctx);
+      functionPublications(stmt, ctx);
+      break;
+    case 'DropFunctions':
+      dropFunctions(stmt, ctx);
+      dropPublicationFunctions(stmt, ctx);
+      break;
+    case 'FunctionCall':
+      functionCall(stmt, ctx);
+      break;
+    case 'Publication':
+      publication(stmt, ctx);
+      break;
     case 'DynamicSql':
+      dynamicSqlPublications(stmt, ctx);
       dynamicSql(stmt, ctx);
       break;
     case 'Unparseable':
       unparseable(stmt, ctx);
       break;
     case 'Unknown':
-      // Valid SQL the model does not need (functions, comments, ALTER TABLE ... ADD COLUMN).
+      // Valid SQL the model does not need (indexes, comments, ALTER TABLE ... ADD COLUMN).
       break;
   }
 }
@@ -126,7 +164,11 @@ function apply(stmt: Statement, ctx: ReplayContext): void {
 export function replay(inputs: readonly ReplayInput[], options: EngineOptions): ReplayResult {
   const schemas = new Set(options.schemas);
   const inScope = (name: RelationName): boolean => schemas.has(name.schema);
-  const initial = Catalog.create(DefaultPrivileges.initial(options.platformDefaults));
+  const initial = Catalog.create(
+    DefaultPrivileges.initial(options.platformDefaults),
+    options.autoRls,
+    options.platformPublications ?? DEFAULT_CONFIG.platformPublications,
+  );
   let catalog = initial;
   const files = inputs.map((input, index): FileReplay => {
     const events: ReplayEvent[] = [];

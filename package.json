@@ -1,6 +1,6 @@
 {
   "name": "supabase-grants-lint",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Replays Supabase SQL migrations and flags tables the Data API cannot reach once auto-grants are gone (PostgREST 42501).",
   "keywords": [
     "supabase",
@@ -36,6 +36,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./engine": {
+      "types": "./dist/engine.d.ts",
+      "import": "./dist/engine.js"
     },
     "./package.json": "./package.json"
   },

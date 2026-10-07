@@ -50,6 +50,8 @@ with a suggestion for typos.
 | `since`                 | `"auto"`, `"none"` or a version          | `"auto"`                    |
 | `platformDefaults`      | `"legacy"` or `"explicit"`               | `"legacy"`                  |
 | `platformRevokeAtSince` | boolean                                  | `true`                      |
+| `autoRls`               | `"auto"`, `"on"` or `"off"`              | `"auto"`                    |
+| `platformPublications`  | string[]                                 | `["supabase_realtime"]`     |
 | `migrationRole`         | string                                   | `"postgres"`                |
 | `clientRoles`           | string[]                                 | `["anon", "authenticated"]` |
 | `serviceRole`           | string                                   | `"service_role"`            |
@@ -120,6 +122,28 @@ follows the SQL Supabase published: `select`, `insert`, `update`, `delete` on ta
 `select` on sequences, from `anon`, `authenticated` and `service_role`; `truncate`, `references`,
 `trigger`, `maintain` and sequence `update` stay (see [GL008](rules/GL008.md)). The output has a
 notice naming the file. Set `false` to replay without it.
+
+### autoRls
+
+For the [engine export](engine.md) only: grants-lint's rules do not read row level security, so this key never
+changes their output. Supabase offers an opt-in template that enables row level security on every
+new table in `public` (event trigger `ensure_rls` calling `public.rls_auto_enable()`). This key
+says when the replay assumes it.
+
+- `"auto"`: while an enabled event trigger named `ensure_rls`, or calling a function named
+  `rls_auto_enable`, on `ddl_command_end` for `CREATE TABLE` exists in the replayed migrations; and
+  from a migration that defines `public.rls_auto_enable()` returning `event_trigger` until it is
+  dropped, because a pulled baseline keeps that function but not the trigger.
+- `"on"`: from the first migration.
+- `"off"`: only explicit `alter table ... enable row level security` statements count.
+
+### platformPublications
+
+For the [engine export](engine.md) only: grants-lint's rules do not read publications, so this key never
+changes their output. The publications that exist, with no tables, before the first migration.
+Supabase's database image creates `supabase_realtime` empty (hosted projects, the local stack and
+preview branches alike), so migrations usually only `alter` it. Set `[]` for Postgres outside
+Supabase.
 
 ### migrationRole
 

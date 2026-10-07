@@ -75,6 +75,18 @@
       "type": "boolean",
       "default": true
     },
+    "autoRls": {
+      "description": "Engine export only (grants-lint's rules ignore it): whether new tables in public start with row level security on, as Supabase's ensure_rls event trigger makes them. \"auto\": while a migration-created trigger is enabled, or from a migration that defines public.rls_auto_enable() returning event_trigger until it is dropped. \"on\": from the start. \"off\": only explicit ALTER TABLE statements.",
+      "type": "string",
+      "enum": ["auto", "on", "off"],
+      "default": "auto"
+    },
+    "platformPublications": {
+      "description": "Engine export only (grants-lint's rules ignore it): publications that exist, empty, before the first migration, because the database image creates them. [] for Postgres outside Supabase.",
+      "type": "array",
+      "items": { "type": "string" },
+      "default": ["supabase_realtime"]
+    },
     "migrationRole": {
       "description": "Role that runs the migrations and creates the relations; its default privileges apply to new relations.",
       "type": "string",
