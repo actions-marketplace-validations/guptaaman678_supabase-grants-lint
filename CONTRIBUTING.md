@@ -16,17 +16,17 @@ Node `>=22` is required (`.nvmrc` pins the version used in development).
 
 ## Commands
 
-| Command                           | Purpose                                                                                                            |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `npm run build`                   | build the CLI and library with tsup                                                                                |
-| `npm test`                        | run the vitest suite                                                                                               |
-| `npm run test:watch`              | run tests in watch mode                                                                                            |
-| `npm run lint`                    | ESLint                                                                                                             |
-| `npm run typecheck`               | `tsc --noEmit` in strict mode                                                                                      |
-| `npm run format` / `format:check` | Prettier                                                                                                           |
-| `npm run mutation`                | Stryker mutation testing on `src/model`, `src/replay`, `src/rules`, `src/fix` and live mode's parsing (`src/live`) |
-| `npm run bench`                   | cold-start `check` timings on generated projects of 100 and 500 migrations                                         |
-| `npm run corpus`                  | pinned corpus regression (network: fetches the projects in `test/corpus`)                                          |
+| Command                           | Purpose                                                                                                                               |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run build`                   | build the CLI and library with tsup                                                                                                   |
+| `npm test`                        | run the vitest suite                                                                                                                  |
+| `npm run test:watch`              | run tests in watch mode                                                                                                               |
+| `npm run lint`                    | ESLint                                                                                                                                |
+| `npm run typecheck`               | `tsc --noEmit` in strict mode                                                                                                         |
+| `npm run format` / `format:check` | Prettier                                                                                                                              |
+| `npm run mutation`                | Stryker mutation testing on `src/model`, `src/replay`, `src/rules`, `src/fix`, live mode's parsing (`src/live`) and the engine export |
+| `npm run bench`                   | cold-start `check` timings on generated projects of 100 and 500 migrations                                                            |
+| `npm run corpus`                  | pinned corpus regression (network: fetches the projects in `test/corpus`)                                                             |
 
 ## Fixture layout
 
@@ -201,7 +201,8 @@ outside that are out of scope and are pointed elsewhere:
 ## Mutation testing
 
 `npm run mutation` runs [Stryker](https://stryker-mutator.io/) with the vitest
-runner over `src/model`, `src/replay`, `src/rules` and `src/fix`, using
+runner over `src/model`, `src/replay`, `src/rules`, `src/fix` and the engine
+export (`src/engine.ts`, `src/snapshot.ts`), using
 `vitest.mutation.config.ts` (the in-process unit and golden suites; tests that
 run the built CLI in a child process cannot see a mutant). The run fails below
 a mutation score of 80 (`thresholds.break` in `stryker.config.json`); the
@@ -238,6 +239,8 @@ kill them) are listed here. Every other surviving mutant gets a test.
 | `src/rules/GL005.ts` `finding`                                                                       | always set `fix`, even to `undefined`                                                                                                      | `runRules` copies `fix` into the report only when it has a value.                                                                                            |
 | `src/rules/GL007.ts` `fromFiles`                                                                     | also list revokes as candidate anchors                                                                                                     | A revoke removes what it names from its own entry, so it is only still in effect if a later grant restored it, and `findLast` then returns that later grant. |
 | `src/rules/PARSE001.ts`, `PARSE002.ts`, `index.ts` `replayNotices`                                   | `event.kind === 'skipped'` to `true`                                                                                                       | Only `skipped` events have a `reason`; for the others it is `undefined`.                                                                                     |
+| `src/engine.ts` `resolve`                                                                            | `options.configFile === undefined` to `false`                                                                                              | It then passes `configFile: undefined`, which `loadConfig` treats like a missing key; the spread only satisfies `exactOptionalPropertyTypes`.                |
+| `src/engine.ts` `entryDirs`                                                                          | `fixed \|\| '.'` to `fixed \|\| ''`                                                                                                        | `path.resolve(projectDir, '')` and `path.resolve(projectDir, '.')` are both `projectDir`.                                                                    |
 | `src/rules/index.ts` `isClientRole`                                                                  | `typeof role === 'string'` to `true`                                                                                                       | `clientRoles` holds strings, so it never includes `PUBLIC`.                                                                                                  |
 | `src/rules/index.ts` `runRules`                                                                      | `inlineUsed.get(suppression)?.add` to `.add`                                                                                               | Every suppression is a key of `inlineUsed`, which is built from the same list.                                                                               |
 | `src/rules/index.ts` `preferGL002`                                                                   | `relation === undefined` or `role === undefined` to `false`                                                                                | GL002 findings always have a relation and a role, so a GL003 finding without one never matches their key.                                                    |
